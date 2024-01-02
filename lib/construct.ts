@@ -37,6 +37,9 @@ export class DatabaseCollector extends Construct {
     role.addManagedPolicy({
       managedPolicyArn: "arn:aws:iam::aws:policy/CloudWatchFullAccessV2"
     })
+    role.addManagedPolicy({
+      managedPolicyArn: "arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess"
+    })
   }
 
   /**
