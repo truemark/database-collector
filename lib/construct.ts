@@ -2,7 +2,9 @@ import {Construct} from "constructs";
 import * as path from "path";
 import {
   aws_iam as iam,
-  aws_lambda as lambda
+  aws_lambda as lambda,
+  aws_events_targets as targets,
+  aws_events as events
 } from "aws-cdk-lib";
 
 export interface DatabaseCollectorProps {
@@ -54,7 +56,12 @@ export class DatabaseCollector extends Construct {
       GOOS: 'linux',
       GOARCH: "arm64",
     };
-    return new lambda.Function(this, id, {
+
+    const scheduleRule = new events.Rule(this, 'Rule', {
+      schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
+    })
+
+    const lambdaFn = new lambda.Function(this, id, {
       code: lambda.Code.fromAsset(lambdaPath, {
         bundling: {
           image: lambda.Runtime.PROVIDED_AL2023.bundlingImage,
@@ -75,6 +82,8 @@ export class DatabaseCollector extends Construct {
       runtime: lambda.Runtime.PROVIDED_AL2023,
       architecture: lambda.Architecture.ARM_64
     })
+
+    scheduleRule.addTarget(new targets.LambdaFunction(lambdaFn))
   }
 
   constructor(scope: Construct, id: string, props: DatabaseCollectorProps) {
