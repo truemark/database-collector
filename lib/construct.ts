@@ -1,4 +1,4 @@
-import {Construct} from "constructs";
+import { Construct } from "constructs";
 import * as path from "path";
 import {
   aws_iam as iam,
@@ -32,7 +32,7 @@ export class DatabaseCollector extends Construct {
         ],
         resources: ["*"],
         conditions: {
-          "StringEquals": {"database-collector:enabled": "true"}
+          "StringEquals": { "database-collector:enabled": "true" }
         }
       })
     )
@@ -52,9 +52,7 @@ export class DatabaseCollector extends Construct {
    */
   private buildAndInstallGOLambda(id: string, lambdaPath: string, handler: string) {
     const environment = {
-      CGO_ENABLED: '0',
-      GOOS: 'linux',
-      GOARCH: "arm64",
+      CGO_ENABLED: '0'
     };
 
     const scheduleRule = new events.Rule(this, 'Rule', {
@@ -73,7 +71,7 @@ export class DatabaseCollector extends Construct {
               'rm -rf /usr/local/go && tar -C /usr/local -xzf go1.21.5.linux-arm64.tar.gz',
               'export PATH=$PATH:/usr/local/go/bin',
               'make vendor',
-              'make lambda-build'
+              `make ${process.env.LAMBDA_BUILD_COMMAND || 'lambda-build'}`
             ].join(' && ')
           ]
         }
@@ -82,7 +80,6 @@ export class DatabaseCollector extends Construct {
       runtime: lambda.Runtime.PROVIDED_AL2023,
       architecture: lambda.Architecture.ARM_64
     })
-
     scheduleRule.addTarget(new targets.LambdaFunction(lambdaFn))
   }
 
