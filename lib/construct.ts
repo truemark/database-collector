@@ -42,6 +42,8 @@ export class DatabaseCollector extends Construct {
     role.addManagedPolicy({
       managedPolicyArn: "arn:aws:iam::aws:policy/AmazonPrometheusRemoteWriteAccess"
     })
+
+    return role
   }
 
   /**
@@ -54,6 +56,8 @@ export class DatabaseCollector extends Construct {
     const environment = {
       CGO_ENABLED: '0'
     };
+
+    const role = this.IAMRole()
 
     const scheduleRule = new events.Rule(this, 'Rule', {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
@@ -78,14 +82,14 @@ export class DatabaseCollector extends Construct {
       }),
       handler,
       runtime: lambda.Runtime.PROVIDED_AL2023,
-      architecture: lambda.Architecture.ARM_64
+      architecture: lambda.Architecture.ARM_64,
+      role: role
     })
     scheduleRule.addTarget(new targets.LambdaFunction(lambdaFn))
   }
 
   constructor(scope: Construct, id: string, props: DatabaseCollectorProps) {
     super(scope, id);
-    this.IAMRole()
     this.buildAndInstallGOLambda("database-collector", path.join(__dirname, "../lambda/"), "main")
   }
 }
