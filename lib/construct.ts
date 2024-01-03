@@ -4,8 +4,9 @@ import {
   aws_iam as iam,
   aws_lambda as lambda,
   aws_events_targets as targets,
-  aws_events as events
+  aws_events as events,
 } from "aws-cdk-lib";
+import * as gobuild from '@aws-cdk/aws-lambda-go-alpha';
 
 export interface DatabaseCollectorProps {
 }
@@ -88,8 +89,35 @@ export class DatabaseCollector extends Construct {
     scheduleRule.addTarget(new targets.LambdaFunction(lambdaFn))
   }
 
+  private buildAndInstallGoLocal(handler: string, entry: string, version: string){
+    const role = this.IAMRole()
+    const scheduleRule = new events.Rule(this, 'Rule', {
+      schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
+    })
+    const gofn = new gobuild.GoFunction(this,  handler, {
+      entry: entry,
+      bundling: {
+        user: "root",
+        environment: {
+          GOOS: process.env.GOOS || "linux",
+          GOARCH: process.env.GOARCH || "arm64",
+          CGO_ENABLED: "0"
+        },
+        goBuildFlags: ['-ldflags "-s -w"'],
+        buildArgs: {
+          VERSION: version
+        },
+      },
+      runtime: lambda.Runtime.PROVIDED_AL2023,
+      architecture: lambda.Architecture.ARM_64,
+      role: role
+    })
+    scheduleRule.addTarget(new targets.LambdaFunction(gofn))
+    return gofn
+  }
   constructor(scope: Construct, id: string, props: DatabaseCollectorProps) {
     super(scope, id);
-    this.buildAndInstallGOLambda("database-collector", path.join(__dirname, "../lambda/"), "main")
+    this.buildAndInstallGoLocal("database-collector", path.join(__dirname, "../lambda/"), "0.0.1")
+    // this.buildAndInstallGOLambda("database-collector", path.join(__dirname, "../lambda/"), "main")
   }
 }
