@@ -5,8 +5,8 @@ import {
   aws_events_targets as targets,
   aws_events as events,
 } from "aws-cdk-lib";
-import * as gobuild from '@aws-cdk/aws-lambda-go-alpha';
-import { ExtendedGoFunction } from "/home/d3vb00x/repo/truemark/cdk/aws-lambda";
+//Change below to local path of truemark-cdk lib for testing
+import { ExtendedGoFunction } from "truemark-cdk-lib/aws-lambda";
 
 export interface DatabaseCollectorProps {
 }
@@ -47,13 +47,14 @@ export class DatabaseCollector extends Construct {
     return role
   }
 
-  private buildAndInstallGoLocal(handler: string, entry: string, version: string){
+  private buildAndInstallGoLocal(){
     const role = this.IAMRole()
     const scheduleRule = new events.Rule(this, 'Rule', {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
     })
     const gofn = new ExtendedGoFunction(this, 'Lambda', {
       entry: path.join(__dirname, "../lambda/"),
+      memorySize: 128,
       deploymentOptions: {
         createDeployment: false,
       },
@@ -70,7 +71,7 @@ export class DatabaseCollector extends Construct {
   }
   constructor(scope: Construct, id: string, props: DatabaseCollectorProps) {
     super(scope, id);
-    this.buildAndInstallGoLocal("database-collector", path.join(__dirname, "../lambda/"), "0.0.1")
+    this.buildAndInstallGoLocal()
     // this.buildAndInstallGOLambda("database-collector", path.join(__dirname, "../lambda/"), "main")
   }
 }
