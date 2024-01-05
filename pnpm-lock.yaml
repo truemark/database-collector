@@ -18,8 +18,8 @@ dependencies:
     specifier: ^0.5.21
     version: 0.5.21
   truemark-cdk-lib:
-    specifier: 1.10.0
-    version: 1.10.0(@aws-cdk/aws-appsync-alpha@2.59.0-alpha.0)(@aws-cdk/aws-lambda-go-alpha@2.118.0-alpha.0)(@aws-cdk/aws-lambda-python-alpha@2.112.0-alpha.0)(@aws-cdk/aws-redshift-alpha@2.112.0-alpha.0)(aws-cdk-lib@2.118.0)(cdk-monitoring-constructs@7.1.1)(constructs@10.3.0)
+    specifier: 1.11.0-alpha.8
+    version: 1.11.0-alpha.8(@aws-cdk/aws-appsync-alpha@2.59.0-alpha.0)(@aws-cdk/aws-lambda-go-alpha@2.118.0-alpha.0)(@aws-cdk/aws-lambda-python-alpha@2.112.0-alpha.0)(@aws-cdk/aws-redshift-alpha@2.112.0-alpha.0)(aws-cdk-lib@2.118.0)(cdk-monitoring-constructs@7.1.1)(constructs@10.3.0)
 
 devDependencies:
   '@types/jest':
@@ -2369,8 +2369,8 @@ packages:
       is-number: 7.0.0
     dev: true
 
-  /truemark-cdk-lib@1.10.0(@aws-cdk/aws-appsync-alpha@2.59.0-alpha.0)(@aws-cdk/aws-lambda-go-alpha@2.118.0-alpha.0)(@aws-cdk/aws-lambda-python-alpha@2.112.0-alpha.0)(@aws-cdk/aws-redshift-alpha@2.112.0-alpha.0)(aws-cdk-lib@2.118.0)(cdk-monitoring-constructs@7.1.1)(constructs@10.3.0):
-    resolution: {integrity: sha512-3XiHgUHCBcPQ1frvj3MO4PF3KhfsFZDhaGj1bi9KzZ2HHuDgbe+nSzDnzBv6hGndY12QU0qv7AJvAzdVlL7jrw==}
+  /truemark-cdk-lib@1.11.0-alpha.8(@aws-cdk/aws-appsync-alpha@2.59.0-alpha.0)(@aws-cdk/aws-lambda-go-alpha@2.118.0-alpha.0)(@aws-cdk/aws-lambda-python-alpha@2.112.0-alpha.0)(@aws-cdk/aws-redshift-alpha@2.112.0-alpha.0)(aws-cdk-lib@2.118.0)(cdk-monitoring-constructs@7.1.1)(constructs@10.3.0):
+    resolution: {integrity: sha512-YC1tauMYZQVPEDbt2m8znhQI6N3bephSQG10ReywwnffA/H9GjbJE6WJcEuoIgn7JOF5aI/GLueozKVeZG1AQw==}
     peerDependencies:
       '@aws-cdk/aws-appsync-alpha': ^2.59.0-alpha.0
       '@aws-cdk/aws-lambda-go-alpha': ^2.112.0-alpha.0
