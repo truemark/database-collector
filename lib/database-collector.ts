@@ -53,8 +53,8 @@ export class DatabaseCollector extends Construct {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
     })
     const gofn = new ExtendedGoFunction(this, 'Lambda', {
-      entry: path.join(__dirname, "../lambda/"),
-      memorySize: 128,
+      entry: path.join(__dirname, '..', 'collector'),
+      memorySize: 512,
       deploymentOptions: {
         createDeployment: false,
       },

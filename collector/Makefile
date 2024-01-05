@@ -19,7 +19,7 @@ go-build:
 	go build $(GOFLAGS) -o $(OUTDIR)/bootstrap
 
 .PHONY: vendor
-vendor: 
+vendor:
 	go mod vendor
 
 build:
