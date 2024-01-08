@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database-collector/utils"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
 )
@@ -19,5 +20,7 @@ func HandleRequest(ctx context.Context, event *MyEvent) (*string, error) {
 }
 
 func main() {
+	//secretName := "test/db"
+	utils.ListSecrets()
 	lambda.Start(HandleRequest)
 }

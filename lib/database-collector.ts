@@ -33,7 +33,9 @@ export class DatabaseCollector extends Construct {
         ],
         resources: ["*"],
         conditions: {
-          "StringEquals": { "database-collector:enabled": "true" }
+          "StringEquals": {
+            "aws:ResourceTag/database-collector:enabled": "true"
+          }
         }
       })
     )
