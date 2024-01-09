@@ -5,6 +5,9 @@ import (
 	"database-collector/utils"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/rs/zerolog"
+	"os"
+	"time"
 )
 
 type MyEvent struct {
@@ -20,7 +23,11 @@ func HandleRequest(ctx context.Context, event *MyEvent) (*string, error) {
 }
 
 func main() {
-	//secretName := "test/db"
-	utils.ListSecrets()
+	logger := zerolog.New(
+		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
+	).Level(zerolog.TraceLevel).With().Timestamp().Caller().Logger()
+
+	logger.Info().Msg("Database collector started")
+	utils.ListSecrets(logger)
 	lambda.Start(HandleRequest)
 }
