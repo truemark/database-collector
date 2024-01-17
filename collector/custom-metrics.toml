@@ -1,0 +1,4 @@
+[[metric]]
+context = "startup"
+metricsdesc = {time_seconds="Database startup time in seconds."}
+request = "SELECT (SYSDATE - STARTUP_TIME) * 24 * 60 * 60 AS time_seconds FROM V$INSTANCE"
