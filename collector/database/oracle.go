@@ -64,6 +64,7 @@ type Metric struct {
 	Context          string
 	Labels           []string
 	MetricsDesc      map[string]string
+	CloudwatchType   map[string]string
 	MetricsType      map[string]string
 	MetricsBuckets   map[string]map[string]string
 	FieldToAppend    string
@@ -285,14 +286,15 @@ func (e *Exporter) scrape(logger zerolog.Logger) {
 func (e *Exporter) ScrapeMetric(db *sql.DB, logger zerolog.Logger, metricDefinition Metric) error {
 	logger.Info().Msg("calling function ScrapeGenericValues()")
 	//return e.generatePrometheusMetrics(db, logger, metricDefinition.Request)
+	fmt.Println("MetricsDefinition: ", metricDefinition)
 	return e.scrapeGenericValues(db, logger, metricDefinition.Context, metricDefinition.Labels,
 		metricDefinition.MetricsDesc, metricDefinition.MetricsType, metricDefinition.MetricsBuckets,
 		metricDefinition.FieldToAppend, metricDefinition.IgnoreZeroResult,
-		metricDefinition.Request)
+		metricDefinition.Request, metricDefinition.CloudwatchType)
 }
 
 func (e *Exporter) scrapeGenericValues(db *sql.DB, logger zerolog.Logger, context string, labels []string,
-	metricsDesc map[string]string, metricsType map[string]string, metricsBuckets map[string]map[string]string, fieldToAppend string, ignoreZeroResult bool, request string) error {
+	metricsDesc map[string]string, metricsType map[string]string, metricsBuckets map[string]map[string]string, fieldToAppend string, ignoreZeroResult bool, request string, cloudWatchType map[string]string) error {
 	metricsCount := 0
 	genericParser := func(row map[string]string) error {
 		// Construct labels value
@@ -314,13 +316,11 @@ func (e *Exporter) scrapeGenericValues(db *sql.DB, logger zerolog.Logger, contex
 			logger.Debug().Msg(fmt.Sprintf("Running for metric: %s, Row: %s", row, row[metric]))
 			if !exists {
 				logger.Error().Msg(fmt.Sprintf("Metric '%s' does not exist in the row", metric))
-				exists = true
 				continue
 			}
 			value, err := strconv.ParseFloat(strings.TrimSpace(valueStr), 64)
 			if err != nil {
 				logger.Error().Err(errors.New("conversion Error")).Msg(fmt.Sprintf("Unable to convert current value to float (metric=%s, metricHelp=%s, value=<%s>)", metric, metricHelp, valueStr))
-				err = nil
 				continue
 			}
 
@@ -334,14 +334,14 @@ func (e *Exporter) scrapeGenericValues(db *sql.DB, logger zerolog.Logger, contex
 			}
 			// Here you would use the 'dimensions' and the 'value' to create your metrics
 			// For example, you might send them to a monitoring system or log them
-			logger.Info().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
+			logger.Info().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v, metricType: %s", metric, value, dimensions, cloudWatchType[metric]))
 			//Push data to cloudWatch
 			err = utils.PutCloudwatchMetrics(logger, utils.MetricDataInput{
 				Namespace: namespace,
 				MetricData: []utils.MetricDatum{
 					{
 						MetricName: fmt.Sprintf("%s_%s", context, metric),
-						Unit:       "Count", //How to sort unit types to proper cloudwatch units
+						Unit:       cloudWatchType[metric], //How to sort unit types to proper cloudwatch units
 						Value:      value,
 						Dimensions: dimensions,
 					},
@@ -352,8 +352,6 @@ func (e *Exporter) scrapeGenericValues(db *sql.DB, logger zerolog.Logger, contex
 			} else {
 				logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
 			}
-			err = nil
-			exists = true
 			metricsCount++
 		}
 		//logger.Info().Msg(fmt.Sprintf("Data recieved in genericParser: %s, for context: %s, lables: %s, metricsDesc: %s, metricsType: %s, metricsBuckets: %s, fieldToAppend: %s", row, context, labelsValues, metricsDesc, metricsType, metricsBuckets, fieldToAppend))

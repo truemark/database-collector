@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"database-collector/database"
-	"errors"
+	"database-collector/utils"
+	"fmt"
 	kingpin "github.com/alecthomas/kingpin/v2"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
@@ -49,13 +52,13 @@ type MyEvent struct {
 	Name string `json:"name"`
 }
 
-//func HandleRequest(ctx context.Context, event *MyEvent) (*string, error) {
-//	if event == nil {
-//		return nil, fmt.Errorf("received nil event")
-//	}
-//	message := fmt.Sprintf("Hello %s!", event.Name)
-//	return &message, nil
-//}
+func HandleRequest(ctx context.Context, event *MyEvent) (*string, error) {
+	if event == nil {
+		return nil, fmt.Errorf("received nil event")
+	}
+	message := fmt.Sprintf("Hello %s!", event.Name)
+	return &message, nil
+}
 
 func getEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -65,29 +68,14 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
-
 	promLogConfig := &promlog.Config{}
 	logger := zerolog.New(
 		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
 	).Level(zerolog.TraceLevel).With().Timestamp().Caller().Logger()
-	//metricInput := utils.MetricDataInput{
-	//	Namespace: "pjain-test",
-	//	MetricData: []utils.MetricDatum{
-	//		{
-	//			MetricName: "TestVisitors",
-	//			Unit:       "Count",
-	//			Value:      5885.0,
-	//			Dimensions: []utils.Dimension{},
-	//		},
-	//	},
-	//}
-	//utils.PutCloudwatchMetrics(logger, metricInput)
-	//return
 	flag.AddFlags(kingpin.CommandLine, promLogConfig)
 	kingpin.HelpFlag.Short('\n')
 	kingpin.Version(version.Print("oracledb_exporter"))
 	kingpin.Parse()
-	//prlogger := promlog.New(promLogConfig)
 	logger.Info().Msg("Database collector started")
 	dsn := os.Getenv("DATA_SOURCE_NAME")
 	config := &database.Config{
@@ -100,44 +88,17 @@ func main() {
 	}
 	_, err := database.NewExporter(logger, config)
 	if err != nil {
-		logger.Error().Err(errors.New(err.Error())).Msg("Failed connecting to database")
+		logger.Error().Err(err).Msg("Failed connecting to database")
 	}
 	// TODO: ADD loop over secrets we get from secrets manager and get data for all databases.
-	//if err != nil {
-	//	level.Error(prlogger).Log("unable to connect to DB", err)
-	//}
-	//
-	//if *scrapeInterval != 0 {
-	//	ctx, cancel := context.WithCancel(context.Background())
-	//	defer cancel()
-	//	go exporter.RunScheduledScrapes(ctx, *scrapeInterval)
-	//}
-	//
-	//prometheus.MustRegister(exporter)
-	//prometheus.MustRegister(version.NewCollector("oracledb_exporter"))
-	//
-	//level.Info(prlogger).Log("msg", "Starting oracledb_exporter", "version", version.Info())
-	//level.Info(prlogger).Log("msg", "Build context", "build", version.BuildContext())
-	//level.Info(prlogger).Log("msg", "Collect from: ", "metricPath", *metricPath)
-	//
-	//opts := promhttp.HandlerOpts{
-	//	ErrorHandling: promhttp.ContinueOnError,
-	//}
-	//http.Handle(*metricPath, promhttp.HandlerFor(prometheus.DefaultGatherer, opts))
-	//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	//	w.Write([]byte("<html><head><title>Oracle DB Exporter " + Version + "</title></head><body><h1>Oracle DB Exporter " + Version + "</h1><p><a href='" + *metricPath + "'>Metrics</a></p></body></html>"))
-	//})
-	////http.HandleFunc("/scrape", scrapeHandle(logger))
-	//
-	//server := &http.Server{}
-	//if err := web.ListenAndServe(server, toolkitFlags, prlogger); err != nil {
-	//	level.Error(prlogger).Log("msg", "Listening error", "reason", err)
-	//	os.Exit(1)
-	//}
-	////err := database.Collect
-	//if err != nil {
-	//	fmt.Println(err.Error())
-	//}
-	//utils.ListSecrets(logger)
-	//lambda.Start(HandleRequest)
+	if err != nil {
+		logger.Error().Err(err).Msg("Unable to connect to databse")
+	}
+
+	logger.Info().Msg(fmt.Sprintf("Starting database_exporter, version: %s", version.Info()))
+	logger.Info().Msg(fmt.Sprintf("Build context, build: %s", version.BuildContext()))
+	logger.Info().Msg(fmt.Sprintf("Collect from metricPath: %s", *metricPath))
+
+	utils.ListSecrets(logger)
+	lambda.Start(HandleRequest)
 }
