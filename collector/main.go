@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"database-collector/database"
+	"database-collector/database/oracle"
 	"database-collector/utils"
 	"fmt"
 	kingpin "github.com/alecthomas/kingpin/v2"
@@ -52,6 +52,25 @@ type MyEvent struct {
 	Name string `json:"name"`
 }
 
+func oracleExporter(logger zerolog.Logger) {
+	logger.Info().Msg("Oracle Exporter Started")
+	var (
+		customMetrics = kingpin.Flag(
+			"custom.metrics",
+			"File that may contain various custom metrics in a TOML file. (env: CUSTOM_METRICS)",
+		).Default(getEnv("CUSTOM_METRICS", "")).String()
+	)
+
+	config := oracle.Config{
+		DSN:                os.Getenv("DATA_SOURCE_NAME"),
+		MaxOpenConns:       *maxOpenConns,
+		MaxIdleConns:       *maxIdleConns,
+		CustomMetrics:      *customMetrics,
+		QueryTimeout:       *queryTimeout,
+		DefaultMetricsFile: *defaultFileMetrics,
+	}
+}
+
 func HandleRequest(ctx context.Context, event *MyEvent) (*string, error) {
 	if event == nil {
 		return nil, fmt.Errorf("received nil event")
@@ -78,7 +97,7 @@ func main() {
 	kingpin.Parse()
 	logger.Info().Msg("Database collector started")
 	dsn := os.Getenv("DATA_SOURCE_NAME")
-	config := &database.Config{
+	config := &oracle.Config{
 		DSN:                dsn,
 		MaxOpenConns:       *maxOpenConns,
 		MaxIdleConns:       *maxIdleConns,
@@ -86,7 +105,7 @@ func main() {
 		QueryTimeout:       *queryTimeout,
 		DefaultMetricsFile: *defaultFileMetrics,
 	}
-	_, err := database.NewExporter(logger, config)
+	_, err := oracle.NewExporter(logger, config)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed connecting to database")
 	}
