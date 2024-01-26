@@ -79,23 +79,70 @@ WHERE dtum.tablespace_name = dt.tablespace_name
 ORDER by tablespace
 '''
 
+[[metric]]
+context = "cache_hit_ratio"
+metricsdesc = { percentage = "Gauge metric with the cache hit ratio." }
+cloudwatchtype = { percentage = "Percent" }
+request = "select Round(((Sum(Decode(a.name, 'consistent gets', a.value, 0)) + Sum(Decode(a.name, 'db block gets', a.value, 0)) - Sum(Decode(a.name, 'physical reads', a.value, 0))  )/ (Sum(Decode(a.name, 'consistent gets', a.value, 0)) + Sum(Decode(a.name, 'db block gets', a.value, 0)))) *100,2) as percentage FROM v$sysstat a"
+
+[[metric]]
+context = "startup"
+metricsdesc = { time_seconds = "Database startup time in seconds." }
+cloudwatchtype = { time_seconds = "Seconds" }
+request = "SELECT (SYSDATE - STARTUP_TIME) * 24 * 60 * 60 AS time_seconds FROM V$INSTANCE"
+
+[[metric]]
+context = "blocking"
+metricsdesc = { count = "Database blocking cound." }
+cloudwatchtype = { count = "Count" }
+request = "SELECT count(1) AS count FROM v$session s WHERE s.blocking_session IS NOT NULL AND s.seconds_in_wait > 600"
+
+[[metric]]
+context = "recovery"
+metricsdesc = { file_dest_perc_used = "Recovery file percentage used." }
+cloudwatchtype = { file_dest_percent_used = "Percent" }
+request = "SELECT Round(Sum(PERCENT_SPACE_USED)) AS file_dest_perc_used FROM v$flash_recovery_area_usage WHERE file_type NOT IN ('FLASHBACK LOG')"
+
+[[metric]]
+context = "tcp_socket_kags"
+metricsdesc = { wait_count = "tcp kags count." }
+cloudwatchtype = { wait_count = "Count" }
+request = "SELECT count(1) as wait_count FROM gv$session WHERE type <> 'BACKGROUND' AND event = 'TCP Socket (KGAS)'"
+
+[[metric]]
+context = "sessions_utilization"
+metricsdesc = { utilization_percentage = "Recovery file percentage used." }
+cloudwatchtype = { utilization_percentage = "Percent" }
+request = "SELECT current_utilization as sess_count, max_utilization as sess_hw_mark, limit_value as sess_limit, ROUND((current_utilization / limit_value) * 100, 2) as util_percentage FROMv$resource_limit WHERE resource_name = 'sessions'"
 `
+
+func (e *Exporter) loadMetricsFromFile(path string) (Metrics, error) {
+	var metrics Metrics
+	_, err := toml.DecodeFile(filepath.Clean(path), &metrics)
+	return metrics, err
+}
+
+func (e *Exporter) loadMetricsFromConst() (Metrics, error) {
+	var metrics Metrics
+	_, err := toml.Decode(defaultMetricsConst, &metrics)
+	return metrics, err
+}
 
 // DefaultMetrics is a somewhat hacky way to load the default metrics
 func (e *Exporter) DefaultMetrics(logger zerolog.Logger) Metrics {
-	var metricsToScrape Metrics
+	var metrics Metrics
+	var err error
+
 	if e.config.DefaultMetricsFile != "" {
-		if _, err := toml.DecodeFile(filepath.Clean(e.config.DefaultMetricsFile), &metricsToScrape); err != nil {
-			logger.Error().
-				Err(errors.New(err.Error())).
-				Msg(fmt.Sprintf("there was an issue while loading specified default metrics file, proceeding to run with default metrics"))
-		}
-		return metricsToScrape
+		metrics, err = e.loadMetricsFromFile(e.config.DefaultMetricsFile)
+	} else {
+		metrics, err = e.loadMetricsFromConst()
 	}
 
-	if _, err := toml.Decode(defaultMetricsConst, &metricsToScrape); err != nil {
+	if err != nil {
 		logger.Error().Err(errors.New(err.Error()))
-		panic(errors.New("Error while loading " + defaultMetricsConst))
+		panic(fmt.Sprintf("Failed to decode default metrics from TOML: %v", err))
 	}
-	return metricsToScrape
+
+	return metrics
 }

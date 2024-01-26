@@ -10,6 +10,7 @@ import (
 )
 
 func getService(logger zerolog.Logger) *secretsmanager.SecretsManager {
+	logger.Info().Msg("Initializing AWS service resource.")
 	region := os.Getenv("AWS_REGION")
 	//logger.Info().Msg()
 	sess := session.Must(session.NewSession())
@@ -18,29 +19,21 @@ func getService(logger zerolog.Logger) *secretsmanager.SecretsManager {
 }
 
 func ListSecrets(logger zerolog.Logger) *secretsmanager.ListSecretsOutput {
+	logger.Info().Msg("Retrieving Secrets")
 	svc := getService(logger)
-	input := &secretsmanager.ListSecretsInput{}
+	input := &secretsmanager.ListSecretsInput{
+		MaxResults: aws.Int64(100),
+	}
 	result, err := svc.ListSecrets(input)
 	if err != nil {
 		logger.Error().
 			Err(errors.New(err.Error())).
 			Msg("Failed to list secrets")
 	}
-	//fmt.Println(result.SecretList)
-	for i := 0; i < len(result.SecretList); i++ {
-		for x := 0; x < len(result.SecretList[i].Tags); x++ {
-			if *result.SecretList[i].Tags[x].Key == "database-collector:enabled" {
-				if *result.SecretList[i].Tags[x].Value == "true" {
-					secretValue := getSecretsValue(logger, result.SecretList[i].Name)
-					logger.Debug().Msg(secretValue)
-				}
-			}
-		}
-	}
 	return result
 }
 
-func getSecretsValue(logger zerolog.Logger, secret *string) string {
+func GetSecretsValue(logger zerolog.Logger, secret *string) string {
 	svc := getService(logger)
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: secret,
