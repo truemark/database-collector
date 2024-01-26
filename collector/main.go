@@ -14,8 +14,6 @@ import (
 	"github.com/rs/zerolog"
 	_ "github.com/sijms/go-ora/v2"
 	"os"
-	"reflect"
-	"time"
 )
 
 var (
@@ -63,8 +61,8 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 func HandleRequest(ctx context.Context) {
 	promLogConfig := &promlog.Config{}
 	logger := zerolog.New(
-		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
-	).Level(zerolog.TraceLevel).With().Timestamp().Caller().Logger()
+		zerolog.ConsoleWriter{Out: os.Stdout},
+	).Level(zerolog.TraceLevel).With().Caller().Logger()
 	flag.AddFlags(kingpin.CommandLine, promLogConfig)
 	kingpin.HelpFlag.Short('\n')
 	kingpin.Version(version.Print("oracledb_exporter"))
@@ -78,7 +76,6 @@ func HandleRequest(ctx context.Context) {
 			if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
 				if *listSecretsResult.SecretList[i].Tags[x].Value == "true" {
 					secretValue := utils.GetSecretsValue(logger, listSecretsResult.SecretList[i].Name)
-					fmt.Println(reflect.TypeOf(secretValue))
 					secretValueMap := map[string]interface{}{}
 					err := json.Unmarshal([]byte(secretValue), &secretValueMap)
 					if err != nil {
