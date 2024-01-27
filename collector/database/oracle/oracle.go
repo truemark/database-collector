@@ -38,16 +38,7 @@ type Config struct {
 	CustomMetrics      string
 	QueryTimeout       int
 	DefaultMetricsFile string
-}
-
-func CreateDefaultConfig() *Config {
-	return &Config{
-		MaxIdleConns:       0,
-		MaxOpenConns:       10,
-		CustomMetrics:      "",
-		QueryTimeout:       5,
-		DefaultMetricsFile: "",
-	}
+	DatabaseIdentifier string
 }
 
 // Metric is an object description
@@ -118,6 +109,10 @@ func NewExporter(logger zerolog.Logger, cfg *Config) (*Exporter, error) {
 
 func (e *Exporter) generateCloudwatchMetrics(logger zerolog.Logger, context string, labelsMap map[string]string, metric string, value float64, metricType map[string]string) error {
 	var dimensions []utils.Dimension
+	dimensions = append(dimensions, utils.Dimension{
+		Name:  "DatabaseIdentifier",
+		Value: e.config.DatabaseIdentifier,
+	})
 	for label, labelValue := range labelsMap {
 		dimensions = append(dimensions, utils.Dimension{
 			Name:  label,
@@ -125,22 +120,22 @@ func (e *Exporter) generateCloudwatchMetrics(logger zerolog.Logger, context stri
 		})
 	}
 	logger.Info().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v, metricType: %s", metric, value, dimensions, metricType[metric]))
-	//err := utils.PutCloudwatchMetrics(logger, utils.MetricDataInput{
-	//	Namespace: namespace,
-	//	MetricData: []utils.MetricDatum{
-	//		{
-	//			MetricName: fmt.Sprintf("%s_%s", context, metric),
-	//			Unit:       metricType[metric], //How to sort unit types to proper cloudwatch units
-	//			Value:      value,
-	//			Dimensions: dimensions,
-	//		},
-	//	},
-	//})
-	//if err != nil {
-	//	logger.Error().Err(err).Msg("Failed to push metric to CloudWatch")
-	//} else {
-	//	logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
-	//}
+	err := utils.PutCloudwatchMetrics(logger, utils.MetricDataInput{
+		Namespace: namespace,
+		MetricData: []utils.MetricDatum{
+			{
+				MetricName: fmt.Sprintf("%s_%s", context, metric),
+				Unit:       metricType[metric], //How to sort unit types to proper cloudwatch units
+				Value:      value,
+				Dimensions: dimensions,
+			},
+		},
+	})
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to push metric to CloudWatch")
+	} else {
+		logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
+	}
 	return nil
 }
 
@@ -158,27 +153,20 @@ func (e *Exporter) generatePrometheusMetrics(db *sql.DB, parse func(row map[stri
 	cols, err := rows.Columns()
 	defer rows.Close()
 	for rows.Next() {
-		// Create a slice of interface{}'s to represent each column,
-		// and a second slice to contain pointers to each item in the columns slice.
 		columns := make([]interface{}, len(cols))
 		columnPointers := make([]interface{}, len(cols))
 		for i := range columns {
 			columnPointers[i] = &columns[i]
 		}
 
-		// Scan the result into the column pointers...
 		if err := rows.Scan(columnPointers...); err != nil {
 			return err
 		}
 
-		// Create our map, and retrieve the value for each column from the pointers slice,
-		// storing it in the map with the name of the column as the key.
 		m := make(map[string]string)
 		for i, colName := range cols {
 			val := columnPointers[i].(*interface{})
 			m[strings.ToLower(colName)] = fmt.Sprintf("%v", *val)
-			//logger.Info().Msg(fmt.Sprintf("Column name: %s, Column value: %v", colName, *val))
-			//fmt.Println(m)
 		}
 		logger.Debug().Msg(fmt.Sprintf("Calling parser for %s", m))
 		if err := parse(m); err != nil {

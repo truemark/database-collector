@@ -18,7 +18,6 @@ func maskDsn(dsn string) string {
 		maskedURL := "***@" + parts[1]
 		return maskedURL
 	}
-	fmt.Println(dsn)
 	return dsn
 }
 
@@ -96,7 +95,7 @@ func (e *Exporter) scrape(logger zerolog.Logger) {
 				}
 			}
 			scrapeStart := time.Now()
-			fmt.Println("Starting scrape for metrics: ")
+			logger.Info().Msg(fmt.Sprintf("Starting scrape for metrics: %s", metric))
 			if err = e.ScrapeMetric(e.db, logger, metric); err != nil {
 				logger.Error().Err(errors.New(err.Error())).Msg(fmt.Sprintf("error scraping for %s_%s, %s", metric.Context, metric.MetricsDesc, time.Since(scrapeStart)))
 				e.scrapeErrors.WithLabelValues(metric.Context).Inc()
@@ -112,7 +111,6 @@ func (e *Exporter) scrape(logger zerolog.Logger) {
 func (e *Exporter) ScrapeMetric(db *sql.DB, logger zerolog.Logger, metricDefinition Metric) error {
 	logger.Info().Msg("calling function ScrapeGenericValues()")
 	//return e.generatePrometheusMetrics(db, logger, metricDefinition.Request)
-	fmt.Println("MetricsDefinition: ", metricDefinition)
 	return e.scrapeGenericValues(db, logger, metricDefinition.Context, metricDefinition.Labels,
 		metricDefinition.MetricsDesc, metricDefinition.MetricsType, metricDefinition.MetricsBuckets,
 		metricDefinition.FieldToAppend, metricDefinition.IgnoreZeroResult,

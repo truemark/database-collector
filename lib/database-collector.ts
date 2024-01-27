@@ -1,11 +1,13 @@
 import { Construct } from "constructs";
 import * as path from "path";
+import { Runtime } from "aws-cdk-lib/aws-lambda";
 import {
   aws_iam as iam,
   aws_events_targets as targets,
+  Duration,
   aws_events as events,
+  aws_ec2 as ec2
 } from "aws-cdk-lib";
-//Change below to local path of truemark-cdk lib for testing
 import { ExtendedGoFunction } from "truemark-cdk-lib/aws-lambda";
 
 export interface DatabaseCollectorProps {
@@ -39,6 +41,16 @@ export class DatabaseCollector extends Construct {
         }
       })
     )
+    role.addToPolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface"
+        ],
+        resources: ["*"]
+      })
+    )
     role.addManagedPolicy({
       managedPolicyArn: "arn:aws:iam::aws:policy/CloudWatchFullAccessV2"
     })
@@ -54,21 +66,27 @@ export class DatabaseCollector extends Construct {
     const scheduleRule = new events.Rule(this, 'Rule', {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
     })
+    // const servicesVpc = ec2.Vpc.fromLookup(this, "services-vpc", {
+    //   vpcName: "services"
+    // })
+    // console.log(servicesVpc.privateSubnets)
     const gofn = new ExtendedGoFunction(this, 'Lambda', {
       entry: path.join(__dirname, '..', 'collector'),
-      memorySize: 512,
+      memorySize: 1024,
+      timeout:Duration.seconds(300),
+      // runtime: Runtime.PROVIDED_AL2,
       deploymentOptions: {
         createDeployment: false,
       },
       environment: {
-        NAME: "test"
+        EXPORTER_TYPE: "cloudwatch"
       },
       bundling: {
         cgoEnabled: false
       },
       role: role,
     })
-    scheduleRule.addTarget(new targets.LambdaFunction(gofn))
+    // scheduleRule.addTarget(new targets.LambdaFunction(gofn))
     return gofn
   }
   constructor(scope: Construct, id: string, props: DatabaseCollectorProps) {

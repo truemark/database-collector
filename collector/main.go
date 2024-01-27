@@ -6,9 +6,10 @@ import (
 	"database-collector/utils"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-lambda-go/lambda"
 	"os"
 	"strings"
+
+	"github.com/aws/aws-lambda-go/lambda"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/promlog"
@@ -63,7 +64,7 @@ var (
 	).Default(getEnv("DATABASE_MAXOPENCONNS", "10")).Int()
 )
 
-func oracleExporter(logger zerolog.Logger, dsn string) {
+func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string) {
 	logger.Info().Msg("Oracle Exporter Started")
 	config := &oracle.Config{
 		DSN:                dsn,
@@ -72,6 +73,7 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 		CustomMetrics:      *customMetrics,
 		QueryTimeout:       *queryTimeout,
 		DefaultMetricsFile: *defaultFileMetrics,
+		DatabaseIdentifier: databaseIdentifier,
 	}
 	_, err := oracle.NewExporter(logger, config)
 	if err != nil {
@@ -112,7 +114,8 @@ func HandleRequest(ctx context.Context) {
 						secretValueMap["host"],
 						int(port),
 						secretValueMap["dbname"],
-					))
+					),
+						secretValueMap["host"].(string))
 				}
 			}
 		}
