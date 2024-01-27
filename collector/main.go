@@ -67,7 +67,7 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 	logger.Info().Msg("Oracle Exporter Started")
 	config := &oracle.Config{
 		DSN:                dsn,
-		MaxOpenConns:       getEnv("DATABASE_MAXOPENCONNS", "10").Int(),
+		MaxOpenConns:       *maxOpenConns,
 		MaxIdleConns:       *maxIdleConns,
 		CustomMetrics:      *customMetrics,
 		QueryTimeout:       *queryTimeout,
