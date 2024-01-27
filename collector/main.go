@@ -9,8 +9,9 @@ import (
 	"os"
 	"strings"
 
-	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/aws/aws-lambda-go/lambda"
+
+	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
@@ -18,6 +19,27 @@ import (
 	"github.com/rs/zerolog/log"
 	_ "github.com/sijms/go-ora/v2"
 )
+
+func initLogger() zerolog.Logger {
+	logLevel := strings.ToLower(getEnv("LOG_LEVEL", "info"))
+	switch logLevel {
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "fatal":
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case "panic":
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+	return log.Logger
+}
 
 var (
 	defaultFileMetrics = kingpin.Flag(
@@ -42,7 +64,7 @@ var (
 	).Default(getEnv("DATABASE_MAXOPENCONNS", "10")).Int()
 )
 
-func oracleExporter(logger zerolog.Logger, dsn string) {
+func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string) {
 	logger.Info().Msg("Oracle Exporter Started")
 	config := &oracle.Config{
 		DSN:                dsn,
@@ -51,6 +73,7 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 		CustomMetrics:      *customMetrics,
 		QueryTimeout:       *queryTimeout,
 		DefaultMetricsFile: *defaultFileMetrics,
+		DatabaseIdentifier: databaseIdentifier,
 	}
 	_, err := oracle.NewExporter(logger, config)
 	if err != nil {
@@ -59,27 +82,6 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 	if err != nil {
 		logger.Error().Err(err).Msg("Unable to connect to databse")
 	}
-}
-
-func initLogger() zerolog.Logger {
-	logLevel := strings.ToLower(getEnv("LOG_LEVEL", "info"))
-	switch logLevel {
-	case "debug":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	case "warn":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	case "error":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	case "fatal":
-		zerolog.SetGlobalLevel(zerolog.FatalLevel)
-	case "panic":
-		zerolog.SetGlobalLevel(zerolog.PanicLevel)
-	default:
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
-	return log.Logger
 }
 
 func HandleRequest(ctx context.Context) {
@@ -112,7 +114,8 @@ func HandleRequest(ctx context.Context) {
 						secretValueMap["host"],
 						int(port),
 						secretValueMap["dbname"],
-					))
+					),
+						secretValueMap["host"].(string))
 				}
 			}
 		}
@@ -127,5 +130,31 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
+	//logger := initLogger()
+	//listSecretsResult := utils.ListSecrets(logger)
+	//for i := 0; i < len(listSecretsResult.SecretList); i++ {
+	//	for x := 0; x < len(listSecretsResult.SecretList[i].Tags); x++ {
+	//		if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
+	//			if *listSecretsResult.SecretList[i].Tags[x].Value == "true" {
+	//				secretValue := utils.GetSecretsValue(logger, listSecretsResult.SecretList[i].Name)
+	//				secretValueMap := map[string]interface{}{}
+	//				err := json.Unmarshal([]byte(secretValue), &secretValueMap)
+	//				if err != nil {
+	//					logger.Error().Err(err).Msg("Failed to unmarshal secret values")
+	//					panic("Cannot proceed")
+	//				}
+	//				port, _ := secretValueMap["port"].(float64)
+	//				logger.Info().Msg(fmt.Sprintf("Gathering metrics for database: %s", secretValueMap["host"]))
+	//				oracleExporter(logger, fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
+	//					secretValueMap["username"],
+	//					secretValueMap["password"],
+	//					secretValueMap["host"],
+	//					int(port),
+	//					secretValueMap["dbname"],
+	//				))
+	//			}
+	//		}
+	//	}
+	//}
 	lambda.Start(HandleRequest)
 }
