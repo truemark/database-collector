@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	_ "github.com/sijms/go-ora/v2"
 )
 
@@ -78,9 +79,7 @@ func initLogger() zerolog.Logger {
 	default:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
-	return zerolog.New(
-		zerolog.ConsoleWriter{Out: os.Stdout, NoColor: false},
-	).With().Logger()
+	return log.Logger
 }
 
 func HandleRequest(ctx context.Context) {
