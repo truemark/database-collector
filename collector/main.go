@@ -6,6 +6,9 @@ import (
 	"database-collector/utils"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+
 	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/prometheus/common/promlog"
@@ -13,7 +16,6 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/rs/zerolog"
 	_ "github.com/sijms/go-ora/v2"
-	"os"
 )
 
 var (
@@ -58,11 +60,32 @@ func oracleExporter(logger zerolog.Logger, dsn string) {
 	}
 }
 
+func initLogger() zerolog.Logger {
+	logLevel := strings.ToLower(getEnv("LOG_LEVEL", "info"))
+	switch logLevel {
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "fatal":
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case "panic":
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+	return zerolog.New(
+		zerolog.ConsoleWriter{Out: os.Stdout, NoColor: false},
+	).With().Logger()
+}
+
 func HandleRequest(ctx context.Context) {
 	promLogConfig := &promlog.Config{}
-	logger := zerolog.New(
-		zerolog.ConsoleWriter{Out: os.Stdout},
-	).Level(zerolog.TraceLevel).With().Caller().Logger()
+	logger := initLogger()
 	flag.AddFlags(kingpin.CommandLine, promLogConfig)
 	kingpin.HelpFlag.Short('\n')
 	kingpin.Version(version.Print("oracledb_exporter"))
