@@ -120,22 +120,22 @@ func (e *Exporter) generateCloudwatchMetrics(context string, labelsMap map[strin
 		})
 	}
 	e.logger.Info().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v, metricType: %s", metric, value, dimensions, metricType[metric]))
-	//err := utils.PutCloudwatchMetrics(e.logger, utils.MetricDataInput{
-	//	Namespace: namespace,
-	//	MetricData: []utils.MetricDatum{
-	//		{
-	//			MetricName: fmt.Sprintf("%s_%s", context, metric),
-	//			Unit:       metricType[metric], //How to sort unit types to proper cloudwatch units
-	//			Value:      value,
-	//			Dimensions: dimensions,
-	//		},
-	//	},
-	//})
-	//if err != nil {
-	//	e.logger.Error().Err(err).Msg("Failed to push metric to CloudWatch")
-	//} else {
-	//	e.logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
-	//}
+	err := utils.PutCloudwatchMetrics(e.logger, utils.MetricDataInput{
+		Namespace: namespace,
+		MetricData: []utils.MetricDatum{
+			{
+				MetricName: fmt.Sprintf("%s_%s", context, metric),
+				Unit:       metricType[metric], //How to sort unit types to proper cloudwatch units
+				Value:      value,
+				Dimensions: dimensions,
+			},
+		},
+	})
+	if err != nil {
+		e.logger.Error().Err(err).Msg("Failed to push metric to CloudWatch")
+	} else {
+		e.logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
+	}
 	e.logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
 	return nil
 }
