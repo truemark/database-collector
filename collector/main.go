@@ -1,20 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database-collector/database/oracle"
 	"database-collector/utils"
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/common/expfmt"
 	"os"
 	"strings"
 
-	"github.com/aws/aws-lambda-go/lambda"
-
 	kingpin "github.com/alecthomas/kingpin/v2"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
+	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	_ "github.com/sijms/go-ora/v2"
@@ -53,7 +56,7 @@ var (
 	queryTimeout = kingpin.Flag(
 		"query.timeout",
 		"Query timeout (in seconds). (env: QUERY_TIMEOUT)",
-	).Default(getEnv("QUERY_TIMEOUT", "5")).Int()
+	).Default(getEnv("QUERY_TIMEOUT", "500")).Int()
 	maxIdleConns = kingpin.Flag(
 		"database.maxIdleConns",
 		"Number of maximum idle connections in the connection pool. (env: DATABASE_MAXIDLECONNS)",
@@ -62,6 +65,7 @@ var (
 		"database.maxOpenConns",
 		"Number of maximum open connections in the connection pool. (env: DATABASE_MAXOPENCONNS)",
 	).Default(getEnv("DATABASE_MAXOPENCONNS", "10")).Int()
+	toolkitFlags = webflag.AddFlags(kingpin.CommandLine, ":9161")
 )
 
 func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string) {
@@ -75,13 +79,48 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 		DefaultMetricsFile: *defaultFileMetrics,
 		DatabaseIdentifier: databaseIdentifier,
 	}
-	_, err := oracle.NewExporter(logger, config)
+	exporter, err := oracle.NewExporter(logger, config)
+
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed connecting to database")
 	}
-	if err != nil {
-		logger.Error().Err(err).Msg("Unable to connect to databse")
+	if os.Getenv("EXPORTER_TYPE") == "prometheus" {
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(exporter)
+		gatherers := prometheus.Gatherers{
+			prometheus.DefaultGatherer,
+			registry,
+		}
+		metricFamilies, err := gatherers.Gather()
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to gather metrics")
+			return
+		}
+		//data, err := serializeMetrics(metricFamilies) // You need to implement serializeMetrics.
+		//if err != nil {
+		//	logger.Error().Err(err).Msg("Failed to serialize metrics")
+		//	return
+		//}
+		//
+		//// Send serialized data to AMP.
+		//err = utils.SendToAMP(data, ampEndpoint, region)
+		//if err != nil {
+		//	logger.Error().Err(err).Msg("Failed to send metrics to AMP")
+		//}
+
+		// Process gathered metrics. For example, log them.
+		for _, mf := range metricFamilies {
+			var writer bytes.Buffer
+			encoder := expfmt.NewEncoder(&writer, expfmt.FmtText)
+			err := encoder.Encode(mf)
+			if err != nil {
+				logger.Error().Err(err).Msg("Failed to encode metric family")
+				continue
+			}
+			logger.Info().Msg(writer.String())
+		}
 	}
+
 }
 
 func HandleRequest(ctx context.Context) {
@@ -130,31 +169,33 @@ func getEnv(key, fallback string) string {
 }
 
 func main() {
-	//logger := initLogger()
-	//listSecretsResult := utils.ListSecrets(logger)
-	//for i := 0; i < len(listSecretsResult.SecretList); i++ {
-	//	for x := 0; x < len(listSecretsResult.SecretList[i].Tags); x++ {
-	//		if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
-	//			if *listSecretsResult.SecretList[i].Tags[x].Value == "true" {
-	//				secretValue := utils.GetSecretsValue(logger, listSecretsResult.SecretList[i].Name)
-	//				secretValueMap := map[string]interface{}{}
-	//				err := json.Unmarshal([]byte(secretValue), &secretValueMap)
-	//				if err != nil {
-	//					logger.Error().Err(err).Msg("Failed to unmarshal secret values")
-	//					panic("Cannot proceed")
-	//				}
-	//				port, _ := secretValueMap["port"].(float64)
-	//				logger.Info().Msg(fmt.Sprintf("Gathering metrics for database: %s", secretValueMap["host"]))
-	//				oracleExporter(logger, fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
-	//					secretValueMap["username"],
-	//					secretValueMap["password"],
-	//					secretValueMap["host"],
-	//					int(port),
-	//					secretValueMap["dbname"],
-	//				))
-	//			}
-	//		}
-	//	}
-	//}
+	logger := initLogger()
+	listSecretsResult := utils.ListSecrets(logger)
+	for i := 0; i < len(listSecretsResult.SecretList); i++ {
+		for x := 0; x < len(listSecretsResult.SecretList[i].Tags); x++ {
+			if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
+				if *listSecretsResult.SecretList[i].Tags[x].Value == "true" {
+					secretValue := utils.GetSecretsValue(logger, listSecretsResult.SecretList[i].Name)
+					secretValueMap := map[string]interface{}{}
+					err := json.Unmarshal([]byte(secretValue), &secretValueMap)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to unmarshal secret values")
+						panic("Cannot proceed")
+					}
+					port, _ := secretValueMap["port"].(float64)
+					logger.Info().Msg(fmt.Sprintf("Gathering metrics for database: %s", secretValueMap["host"]))
+					oracleExporter(logger, fmt.Sprintf(
+						"oracle://%s:%s@%s:%d/%s",
+						secretValueMap["username"],
+						secretValueMap["password"],
+						secretValueMap["host"],
+						int(port),
+						secretValueMap["dbname"],
+					),
+						secretValueMap["host"].(string))
+				}
+			}
+		}
+	}
 	lambda.Start(HandleRequest)
 }
