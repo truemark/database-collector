@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
 	"net/http"
@@ -124,20 +122,9 @@ func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
 		Region: aws.String(os.Getenv("AWS_REGION")),
 	})
 
-	// Determine AWS credentials
-	roleArn := os.Getenv("AWS_AMP_ROLE_ARN")
-	var awsCredentials *credentials.Credentials
-	if roleArn != "" {
-		awsCredentials = stscreds.NewCredentials(sess, roleArn, func(p *stscreds.AssumeRoleProvider) {
-			p.RoleSessionName = roleSessionName()
-		})
-	} else {
-		awsCredentials = sess.Config.Credentials
-	}
-
-	// Sign the request
-	signer := v4.NewSigner(awsCredentials)
-	_, err = signer.Sign(req, body, "aps", os.Getenv("PROMETHEUS_REGION"), time.Now())
+	signer := v4.NewSigner(sess.Config.Credentials)
+	fmt.Println(*sess.Config.Region)
+	_, err = signer.Sign(req, body, "aps", *sess.Config.Region, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign the request: %w", err)
 	}
@@ -146,6 +133,9 @@ func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("Content-Encoding", "snappy")
 	req.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
+	//req.Proto = "HTTP/1.1"
+	//req.ProtoMajor = 1
+	//req.ProtoMinor = 1
 
 	// Perform the HTTP request
 	resp, err := http.DefaultClient.Do(req)
@@ -155,7 +145,7 @@ func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
 
 	// Optionally, you might want to check the response status code here
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request to AMP failed with status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("request to AMP failed with status: %d, %s", resp.StatusCode, resp.Body)
 	}
 
 	return resp, nil
