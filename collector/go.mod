@@ -7,9 +7,12 @@ require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/aws/aws-lambda-go v1.45.0
 	github.com/aws/aws-sdk-go v1.50.4
+	github.com/gogo/protobuf v1.3.2
+	github.com/golang/snappy v0.0.4
 	github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common v0.46.0
 	github.com/prometheus/exporter-toolkit v0.11.0
+	github.com/prometheus/prometheus v0.49.1
 	github.com/rs/zerolog v1.31.0
 	github.com/sijms/go-ora/v2 v2.8.6
 )
