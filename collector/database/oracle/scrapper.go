@@ -179,12 +179,12 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 				}
 			}
 			scrapeStart := time.Now()
-			e.logger.Info().Msg(fmt.Sprintf("Starting scrape for metrics: %s", metric))
+			e.logger.Debug().Msg(fmt.Sprintf("Starting scrape for metrics: %s", metric))
 			if err = e.ScrapeMetric(e.db, ch, metric); err != nil {
 				e.logger.Error().Err(errors.New(err.Error())).Msg(fmt.Sprintf("error scraping for %s_%s, %s", metric.Context, metric.MetricsDesc, time.Since(scrapeStart)))
 				e.scrapeErrors.WithLabelValues(metric.Context).Inc()
 			} else {
-				e.logger.Info().Msg(fmt.Sprintf("successfully scraped metric: %s %s %s", metric.Context, metric.MetricsDesc, time.Since(scrapeStart)))
+				e.logger.Debug().Msg(fmt.Sprintf("successfully scraped metric: %s %s %s", metric.Context, metric.MetricsDesc, time.Since(scrapeStart)))
 			}
 		}
 		go f()
@@ -193,7 +193,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) ScrapeMetric(db *sql.DB, ch chan<- prometheus.Metric, metricDefinition Metric) error {
-	e.logger.Info().Msg("calling function ScrapeGenericValues()")
+	e.logger.Debug().Msg("calling function ScrapeGenericValues()")
 	//return e.generatePrometheusMetrics(db, logger, metricDefinition.Request)
 	return e.scrapeGenericValues(db, ch, metricDefinition.Context, metricDefinition.Labels,
 		metricDefinition.MetricsDesc, metricDefinition.MetricsType, metricDefinition.MetricsBuckets,

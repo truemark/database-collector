@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database-collector/database/oracle"
 	"database-collector/utils"
 	"encoding/json"
 	"fmt"
-	"github.com/prometheus/common/expfmt"
 	"os"
 	"strings"
 
@@ -96,28 +94,12 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 			logger.Error().Err(err).Msg("Failed to gather metrics")
 			return
 		}
-		//data, err := serializeMetrics(metricFamilies) // You need to implement serializeMetrics.
-		//if err != nil {
-		//	logger.Error().Err(err).Msg("Failed to serialize metrics")
-		//	return
-		//}
-		//
-		//// Send serialized data to AMP.
-		//err = utils.SendToAMP(data, ampEndpoint, region)
-		//if err != nil {
-		//	logger.Error().Err(err).Msg("Failed to send metrics to AMP")
-		//}
 
-		// Process gathered metrics. For example, log them.
-		for _, mf := range metricFamilies {
-			var writer bytes.Buffer
-			encoder := expfmt.NewEncoder(&writer, expfmt.FmtText)
-			err := encoder.Encode(mf)
-			if err != nil {
-				logger.Error().Err(err).Msg("Failed to encode metric family")
-				continue
-			}
-			logger.Info().Msg(writer.String())
+		response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to send metrics to APS")
+		} else {
+			logger.Info().Msg(fmt.Sprintf("Successfully sent metrics to APS %s", response))
 		}
 	}
 

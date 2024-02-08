@@ -119,7 +119,7 @@ func (e *Exporter) generateCloudwatchMetrics(context string, labelsMap map[strin
 			Value: labelValue,
 		})
 	}
-	e.logger.Info().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v, metricType: %s", metric, value, dimensions, metricType[metric]))
+	e.logger.Debug().Msg(fmt.Sprintf("Preparing to push Metric '%s': %f, Dimensions: %v, metricType: %s", metric, value, dimensions, metricType[metric]))
 	err := utils.PutCloudwatchMetrics(e.logger, utils.MetricDataInput{
 		Namespace: namespace,
 		MetricData: []utils.MetricDatum{
@@ -136,7 +136,6 @@ func (e *Exporter) generateCloudwatchMetrics(context string, labelsMap map[strin
 	} else {
 		e.logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
 	}
-	e.logger.Info().Msg(fmt.Sprintf("Success push Metric '%s': %f, Dimensions: %v", metric, value, dimensions))
 	return nil
 }
 
