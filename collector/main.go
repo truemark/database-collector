@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"os"
 	"strings"
+	"sync"
 
 	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -90,6 +91,13 @@ func HandleRequest(ctx context.Context) {
 
 	// Get db details to log in
 	listSecretsResult := utils.ListSecrets(logger)
+
+	// Create a channel to limit the number of concurrent goroutines
+	sem := make(chan bool, 10) // Adjust the number as needed
+
+	// Create a WaitGroup to wait for all goroutines to finish
+	var wg sync.WaitGroup
+
 	for i := 0; i < len(listSecretsResult.SecretList); i++ {
 		for x := 0; x < len(listSecretsResult.SecretList[i].Tags); x++ {
 			if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
@@ -103,18 +111,35 @@ func HandleRequest(ctx context.Context) {
 					}
 					port, _ := secretValueMap["port"].(float64)
 					logger.Info().Msg(fmt.Sprintf("Gathering metrics for database: %s", secretValueMap["host"]))
-					oracleExporter(logger, fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
-						secretValueMap["username"],
-						secretValueMap["password"],
-						secretValueMap["host"],
-						int(port),
-						secretValueMap["dbname"],
-					),
-						secretValueMap["host"].(string))
+
+					// Increment the WaitGroup counter
+					wg.Add(1)
+
+					// Acquire a token from the semaphore
+					sem <- true
+
+					go func() {
+						// Release the token when the goroutine finishes
+						defer func() { <-sem }()
+						// Decrement the WaitGroup counter when the goroutine finishes
+						defer wg.Done()
+
+						oracleExporter(logger, fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
+							secretValueMap["username"],
+							secretValueMap["password"],
+							secretValueMap["host"],
+							int(port),
+							secretValueMap["dbname"],
+						),
+							secretValueMap["host"].(string))
+					}()
 				}
 			}
 		}
 	}
+
+	// Wait for all goroutines to finish
+	wg.Wait()
 }
 
 func getEnv(key, fallback string) string {
@@ -127,7 +152,17 @@ func getEnv(key, fallback string) string {
 func main() {
 	// USE THIS IF RUNNING LOCALLY
 	//logger := initLogger()
+	//logger.Info().Msg("Database collector started")
+	//
+	//// Get db details to log in
 	//listSecretsResult := utils.ListSecrets(logger)
+	//
+	//// Create a channel to limit the number of concurrent goroutines
+	//sem := make(chan bool, 10) // Adjust the number as needed
+	//
+	//// Create a WaitGroup to wait for all goroutines to finish
+	//var wg sync.WaitGroup
+	//
 	//for i := 0; i < len(listSecretsResult.SecretList); i++ {
 	//	for x := 0; x < len(listSecretsResult.SecretList[i].Tags); x++ {
 	//		if *listSecretsResult.SecretList[i].Tags[x].Key == "database-collector:enabled" {
@@ -139,21 +174,36 @@ func main() {
 	//					logger.Error().Err(err).Msg("Failed to unmarshal secret values")
 	//					panic("Cannot proceed")
 	//				}
-	//				fmt.Println(secretValueMap)
 	//				port, _ := secretValueMap["port"].(float64)
 	//				logger.Info().Msg(fmt.Sprintf("Gathering metrics for database: %s", secretValueMap["host"]))
-	//				oracleExporter(logger, fmt.Sprintf(
-	//					"oracle://%s:%s@%s:%d/%s",
-	//					secretValueMap["username"],
-	//					secretValueMap["password"],
-	//					secretValueMap["host"],
-	//					int(port),
-	//					secretValueMap["dbname"],
-	//				),
-	//					secretValueMap["host"].(string))
+	//
+	//				// Increment the WaitGroup counter
+	//				wg.Add(1)
+	//
+	//				// Acquire a token from the semaphore
+	//				sem <- true
+	//
+	//				go func() {
+	//					// Release the token when the goroutine finishes
+	//					defer func() { <-sem }()
+	//					// Decrement the WaitGroup counter when the goroutine finishes
+	//					defer wg.Done()
+	//
+	//					oracleExporter(logger, fmt.Sprintf("oracle://%s:%s@%s:%d/%s",
+	//						secretValueMap["username"],
+	//						secretValueMap["password"],
+	//						secretValueMap["host"],
+	//						int(port),
+	//						secretValueMap["dbname"],
+	//					),
+	//						secretValueMap["host"].(string))
+	//				}()
 	//			}
 	//		}
 	//	}
 	//}
+	//
+	//// Wait for all goroutines to finish
+	//wg.Wait()
 	lambda.Start(HandleRequest)
 }
