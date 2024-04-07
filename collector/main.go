@@ -11,11 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	kingpin "github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
-	"github.com/prometheus/common/version"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	_ "github.com/sijms/go-ora/v2"
@@ -81,12 +77,7 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 }
 
 func HandleRequest(ctx context.Context) {
-	promLogConfig := &promlog.Config{}
 	logger := initLogger()
-	flag.AddFlags(kingpin.CommandLine, promLogConfig)
-	kingpin.HelpFlag.Short('\n')
-	kingpin.Version(version.Print("oracledb_exporter"))
-	kingpin.Parse()
 	logger.Info().Msg("Database collector started")
 
 	// Get db details to log in
