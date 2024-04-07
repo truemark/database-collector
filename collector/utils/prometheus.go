@@ -6,12 +6,11 @@ import (
 	"fmt"
 	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
+	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
-	// Import the AWS SDK packages required for authentication.
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws/signer/v4"
@@ -19,97 +18,81 @@ import (
 	"github.com/golang/snappy"
 )
 
-func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily) (*http.Response, error) {
+func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, databaseIdentifier string) (*http.Response, error) {
 	var timeSeries []prompb.TimeSeries
 
 	for _, mf := range metricFamilies {
 		for _, m := range mf.Metric {
-			ts := prompb.TimeSeries{}
+			var timestamp int64
+			if m.GetTimestampMs() != 0 {
+				timestamp = m.GetTimestampMs() // Keep milliseconds if APS expects that
+			} else {
+				timestamp = time.Now().UnixNano() / 1e6 // Current time in milliseconds
+			}
 
-			// Convert labels
-			labels := make([]prompb.Label, len(m.Label)) // Note the change here from []*prompb.Label to []prompb.Label
+			ts := prompb.TimeSeries{}
+			labels := make([]prompb.Label, len(m.Label)+2) // +1 for the metric name
+			labels[0] = prompb.Label{
+				Name:  "__name__",
+				Value: mf.GetName(), // Assuming the metric name is stored here
+			}
 			for i, l := range m.Label {
-				labels[i] = prompb.Label{
-					Name:  l.GetName(),  // Directly using the string value
-					Value: l.GetValue(), // Directly using the string value
+				labels[i+1] = prompb.Label{
+					Name:  l.GetName(),
+					Value: l.GetValue(),
 				}
+			}
+			labels[len(m.Label)+1] = prompb.Label{
+				Name:  "databaseIdentifier", // The label name for the identifier
+				Value: databaseIdentifier,   // The identifier value passed to the function
 			}
 			ts.Labels = labels
 
-			// Convert metric value based on its type (this example only handles Gauge and Counter types)
 			var value float64
-			var timestamp int64
 			switch *mf.Type {
 			case ioprometheusclient.MetricType_COUNTER:
 				if m.Counter != nil {
 					value = m.Counter.GetValue()
-					timestamp = time.Now().Unix()
 				}
 			case ioprometheusclient.MetricType_GAUGE:
 				if m.Gauge != nil {
 					value = m.Gauge.GetValue()
-					timestamp = time.Now().Unix()
 				}
-				// Add cases for other metric types (Histogram, Summary, etc.) as needed
+				// Add cases for other metric types as necessary
 			}
 
-			// Add sample
-			sample := prompb.Sample{
-				Value:     value,
-				Timestamp: timestamp,
+			if timestamp != 0 {
+				sample := prompb.Sample{
+					Value:     value,
+					Timestamp: timestamp,
+				}
+				ts.Samples = []prompb.Sample{sample}
+				timeSeries = append(timeSeries, ts)
 			}
-			ts.Samples = []prompb.Sample{sample}
-
-			timeSeries = append(timeSeries, ts)
 		}
 	}
+
 	writeRequest := &prompb.WriteRequest{
 		Timeseries: timeSeries,
 	}
-	body := encodeWriteRequestIntoProtoAndSnappy(writeRequest)
-	response, err := sendRequestToAPS(body)
-	return response, err
-}
-
-func CreateWriteRequestAndSendToAPS(timeseries []prompb.TimeSeries) (*http.Response, error) {
-	writeRequest := &prompb.WriteRequest{
-		Timeseries: timeseries,
+	body, err := encodeWriteRequestIntoProtoAndSnappy(writeRequest)
+	if err != nil {
+		return nil, err
 	}
-
-	body := encodeWriteRequestIntoProtoAndSnappy(writeRequest)
-	fmt.Println("ROBIN")
-	fmt.Println(body)
-	response, err := sendRequestToAPS(body)
-	fmt.Println(response)
-	return response, err
+	return sendRequestToAPS(body)
 }
 
-func encodeWriteRequestIntoProtoAndSnappy(writeRequest *prompb.WriteRequest) *bytes.Reader {
+func encodeWriteRequestIntoProtoAndSnappy(writeRequest *prompb.WriteRequest) (*bytes.Reader, error) {
 	data, err := proto.Marshal(writeRequest)
-
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
 	encoded := snappy.Encode(nil, data)
-	body := bytes.NewReader(encoded)
-	return body
-}
-
-func roleSessionName() string {
-	suffix, err := os.Hostname()
-
-	if err != nil {
-		now := time.Now().Unix()
-		suffix = strconv.FormatInt(now, 10)
-	}
-
-	return "aws-sigv4-proxy-" + suffix
+	return bytes.NewReader(encoded), nil
 }
 
 func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
-	// Create an HTTP request from the body content and set necessary parameters.
-	remoteWriteURL := ""
+	remoteWriteURL := os.Getenv("PROMETHEUS_REMOTE_WRITE_URL")
 	if remoteWriteURL == "" {
 		return nil, errors.New("PROMETHEUS_REMOTE_WRITE_URL is not set")
 	}
@@ -123,29 +106,24 @@ func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
 	})
 
 	signer := v4.NewSigner(sess.Config.Credentials)
-	fmt.Println(*sess.Config.Region)
 	_, err = signer.Sign(req, body, "aps", *sess.Config.Region, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign the request: %w", err)
 	}
 
-	// Set request headers
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("Content-Encoding", "snappy")
 	req.Header.Set("X-Prometheus-Remote-Write-Version", "0.1.0")
-	//req.Proto = "HTTP/1.1"
-	//req.ProtoMajor = 1
-	//req.ProtoMinor = 1
 
-	// Perform the HTTP request
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request to APS failed: %w", err)
 	}
 
-	// Optionally, you might want to check the response status code here
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request to AMP failed with status: %d, %s", resp.StatusCode, resp.Body)
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		bodyString := string(bodyBytes)
+		return nil, fmt.Errorf("request to AMP failed with status: %d, %s", resp.StatusCode, bodyString)
 	}
 
 	return resp, nil

@@ -51,6 +51,7 @@ export class DatabaseCollector extends Construct {
         resources: ["*"]
       })
     )
+    //TODO: remove full access
     role.addManagedPolicy({
       managedPolicyArn: "arn:aws:iam::aws:policy/CloudWatchFullAccessV2"
     })
@@ -66,10 +67,6 @@ export class DatabaseCollector extends Construct {
     const scheduleRule = new events.Rule(this, 'Rule', {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
     })
-    // const servicesVpc = ec2.Vpc.fromLookup(this, "services-vpc", {
-    //   vpcName: "services"
-    // })
-    // console.log(servicesVpc.privateSubnets)
     const gofn = new ExtendedGoFunction(this, 'Lambda', {
       entry: path.join(__dirname, '..', 'collector'),
       memorySize: 1024,
