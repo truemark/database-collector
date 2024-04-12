@@ -1,5 +1,5 @@
 [[DatabaseIdentifier]]
-name = "ylenv7.c3e13e5epjjl.us-west-2.rds.amazonaws.com"
+name = "mydb"
 
   [[DatabaseIdentifier.metric]]
   context = "slow_queries"
