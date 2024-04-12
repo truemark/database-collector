@@ -6,6 +6,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +17,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/viper"
 )
 
 type Exporter struct {
@@ -66,6 +71,82 @@ var (
 	exporterName      = "exporter"
 )
 
+func (e *Exporter) LoadCustomMetrics(logger zerolog.Logger) error {
+	// Fetch the TOML file from AWS Parameter Store
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+
+	svc := ssm.New(sess)
+
+	param, err := svc.GetParameter(&ssm.GetParameterInput{
+		Name:           aws.String(os.Getenv("CUSTOM_METRICS_FILE")),
+		WithDecryption: aws.Bool(false),
+	})
+	if err != nil {
+		return err
+	}
+	// Parse the TOML file
+	viper.SetConfigType("toml")
+	if err := viper.ReadConfig(strings.NewReader(*param.Parameter.Value)); err != nil {
+		return err
+	}
+
+	// Iterate over the parsed data and add the custom metrics
+	databaseIdentifiers := viper.Get("DatabaseIdentifier").([]interface{})
+
+	for _, dbIdentifier := range databaseIdentifiers {
+		dbIdentifierMap := dbIdentifier.(map[string]interface{})
+
+		metrics := dbIdentifierMap["metric"].([]interface{})
+		for _, metric := range metrics {
+			metricMap := metric.(map[string]interface{})
+			context := metricMap["context"].(string)
+
+			var labels []string
+			if labelsInterface, ok := metricMap["labels"].([]interface{}); ok {
+				labels = make([]string, len(labelsInterface))
+				for i, label := range labelsInterface {
+					labels[i] = label.(string)
+				}
+			}
+			//labelsInterface := metricMap["labels"].([]interface{})
+			//labels := make([]string, len(labelsInterface))
+			//for i, label := range labelsInterface {
+			//	labels[i] = label.(string)
+			//}
+
+			cloudwatchtypeInterface := metricMap["cloudwatchtype"].(map[string]interface{})
+			cloudwatchtype := make(map[string]string, len(cloudwatchtypeInterface))
+			for key, value := range cloudwatchtypeInterface {
+				cloudwatchtype[key] = value.(string)
+			}
+
+			metricsdescInterface := metricMap["metricsdesc"].(map[string]interface{})
+			metricsdesc := make(map[string]string, len(metricsdescInterface))
+			for key, value := range metricsdescInterface {
+				metricsdesc[key] = value.(string)
+			}
+
+			request := metricMap["request"].(string)
+
+			// Create a new Metric with the data from the TOML file
+			newMetric := Metric{
+				Context:        context,
+				Labels:         labels,
+				CloudwatchType: cloudwatchtype,
+				MetricsDesc:    metricsdesc,
+				Request:        request,
+			}
+
+			// Add the new metric to e.metricsToScrape
+			e.metricsToScrape.Metric = append(e.metricsToScrape.Metric, newMetric)
+		}
+	}
+
+	return nil
+}
+
 func NewExporter(logger zerolog.Logger, cfg *Config) (*Exporter, error) {
 	e := &Exporter{
 		mu:  &sync.Mutex{},
@@ -103,7 +184,11 @@ func NewExporter(logger zerolog.Logger, cfg *Config) (*Exporter, error) {
 		config: cfg,
 	}
 	e.metricsToScrape = e.DefaultMetrics(logger)
-	err := e.connect()
+	err := e.LoadCustomMetrics(logger)
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = e.connect()
 	return e, err
 }
 

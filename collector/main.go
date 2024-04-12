@@ -45,7 +45,7 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 		MaxOpenConns:       10,
 		MaxIdleConns:       0,
 		CustomMetrics:      os.Getenv("CUSTOM_METRICS"),
-		QueryTimeout:       500,
+		QueryTimeout:       5,
 		DefaultMetricsFile: os.Getenv("DEFAULT_METRICS"),
 		DatabaseIdentifier: databaseIdentifier,
 	}
@@ -70,7 +70,7 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to send metrics to APS")
 		} else {
-			logger.Info().Msg(fmt.Sprintf("Successfully sent metrics to APS %s", response))
+			logger.Debug().Msg(fmt.Sprintf("Successfully sent metrics to APS %s", response))
 		}
 	}
 
@@ -109,7 +109,7 @@ func HandleRequest(ctx context.Context) {
 					// Acquire a token from the semaphore
 					sem <- true
 
-					go func() {
+					go func(secretValueMap map[string]interface{}) {
 						// Release the token when the goroutine finishes
 						defer func() { <-sem }()
 						// Decrement the WaitGroup counter when the goroutine finishes
@@ -123,7 +123,7 @@ func HandleRequest(ctx context.Context) {
 							secretValueMap["dbname"],
 						),
 							secretValueMap["host"].(string))
-					}()
+					}(secretValueMap)
 				}
 			}
 		}
