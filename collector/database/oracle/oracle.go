@@ -98,6 +98,11 @@ func (e *Exporter) LoadCustomMetrics(logger zerolog.Logger) error {
 	for _, dbIdentifier := range databaseIdentifiers {
 		dbIdentifierMap := dbIdentifier.(map[string]interface{})
 
+		// Check if the current dbIdentifier matches with the DatabaseIdentifier in your Config
+		if dbIdentifierMap["name"].(string) != e.config.DatabaseIdentifier {
+			continue
+		}
+
 		metrics := dbIdentifierMap["metric"].([]interface{})
 		for _, metric := range metrics {
 			metricMap := metric.(map[string]interface{})
@@ -110,11 +115,6 @@ func (e *Exporter) LoadCustomMetrics(logger zerolog.Logger) error {
 					labels[i] = label.(string)
 				}
 			}
-			//labelsInterface := metricMap["labels"].([]interface{})
-			//labels := make([]string, len(labelsInterface))
-			//for i, label := range labelsInterface {
-			//	labels[i] = label.(string)
-			//}
 
 			cloudwatchtypeInterface := metricMap["cloudwatchtype"].(map[string]interface{})
 			cloudwatchtype := make(map[string]string, len(cloudwatchtypeInterface))

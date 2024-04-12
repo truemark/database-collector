@@ -111,16 +111,16 @@ request = "SELECT count(1) as wait_count FROM gv$session WHERE type <> 'BACKGROU
 
 [[metric]]
 context = "sessions_utilization"
-metricsdesc = { util_percentage = "Sessions percentage used." }
+metricsdesc = { percent = "Sessions percentage used." }
 
-cloudwatchtype = { util_percentage = "Percent" }
+cloudwatchtype = { percent = "Percent" }
 request = '''
 SELECT
-    ROUND((current_utilization / limit_value) * 100, 2) as util_percentage
+    ROUND((current_utilization / limit_value) * 100, 2) as percent
 FROM
     v$resource_limit
 WHERE
-    resource_name = 'sessions';
+    resource_name = 'sessions'
 '''
 `
 
