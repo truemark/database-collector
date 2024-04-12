@@ -111,9 +111,17 @@ request = "SELECT count(1) as wait_count FROM gv$session WHERE type <> 'BACKGROU
 
 [[metric]]
 context = "sessions_utilization"
-metricsdesc = { utilization_percentage = "Recovery file percentage used." }
-cloudwatchtype = { utilization_percentage = "Percent" }
-request = "SELECT current_utilization as sess_count, max_utilization as sess_hw_mark, limit_value as sess_limit, ROUND((current_utilization / limit_value) * 100, 2) as util_percentage FROM v$resource_limit WHERE resource_name = 'sessions'"
+metricsdesc = { util_percentage = "Sessions percentage used." }
+
+cloudwatchtype = { util_percentage = "Percent" }
+request = '''
+SELECT
+    ROUND((current_utilization / limit_value) * 100, 2) as util_percentage
+FROM
+    v$resource_limit
+WHERE
+    resource_name = 'sessions';
+'''
 `
 
 func (e *Exporter) loadMetricsFromFile(path string) (Metrics, error) {
