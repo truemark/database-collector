@@ -56,6 +56,8 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 	}
 	if os.Getenv("EXPORTER_TYPE") == "prometheus" {
 		registry := prometheus.NewRegistry()
+		registry.Unregister(prometheus.NewGoCollector())
+		registry.Unregister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 		registry.MustRegister(exporter)
 		gatherers := prometheus.Gatherers{
 			prometheus.DefaultGatherer,
@@ -64,7 +66,6 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 		metricFamilies, err := gatherers.Gather()
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to gather metrics")
-			return
 		}
 		response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, databaseIdentifier)
 		if err != nil {

@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -124,7 +125,9 @@ func (e *Exporter) connect() error {
 
 func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 	var err error
-	if err = e.db.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(e.config.QueryTimeout)*time.Second)
+	defer cancel()
+	if err = e.db.PingContext(ctx); err != nil {
 		if strings.Contains(err.Error(), "sql: database is closed") {
 			e.logger.Info().Msg("Reconnecting to DB")
 			err = e.connect()
@@ -133,7 +136,7 @@ func (e *Exporter) scrape(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
-	if err = e.db.Ping(); err != nil {
+	if err = e.db.PingContext(ctx); err != nil {
 		e.logger.Error().Err(errors.New(err.Error())).Msg("Error pinging oracle.")
 		e.up.Set(0)
 		return
