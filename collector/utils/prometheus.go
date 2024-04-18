@@ -6,7 +6,7 @@ import (
 	"fmt"
 	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -121,7 +121,7 @@ func sendRequestToAPS(body *bytes.Reader) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(resp.Body)
 		bodyString := string(bodyBytes)
 		return nil, fmt.Errorf("request to AMP failed with status: %d, %s", resp.StatusCode, bodyString)
 	}

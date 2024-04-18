@@ -65,10 +65,8 @@ type Metrics struct {
 }
 
 var (
-	additionalMetrics Metrics
-	hashMap           = make(map[int][]byte)
-	namespace         = "oracledb"
-	exporterName      = "exporter"
+	namespace    = "oracledb"
+	exporterName = "exporter"
 )
 
 func (e *Exporter) LoadCustomMetrics(logger zerolog.Logger) error {
@@ -237,6 +235,10 @@ func (e *Exporter) generateMetrics(db *sql.DB, parse func(row map[string]string)
 		return err
 	}
 	cols, err := rows.Columns()
+	if err != nil {
+		// handle the error appropriately, for example:
+		return err
+	}
 	defer rows.Close()
 
 	for rows.Next() {

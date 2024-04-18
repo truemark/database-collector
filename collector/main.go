@@ -70,7 +70,7 @@ func oracleExporter(logger zerolog.Logger, dsn string, databaseIdentifier string
 		if err != nil {
 			logger.Error().Err(err).Msg("Failed to send metrics to APS")
 		} else {
-			logger.Debug().Msg(fmt.Sprintf("Successfully sent metrics to APS %s", response))
+			logger.Debug().Msg(fmt.Sprintf("Successfully sent metrics to APS %v", response))
 		}
 	}
 
