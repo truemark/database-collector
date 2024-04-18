@@ -1,0 +1,59 @@
+groups:
+  - name: Oracle Database Alerts
+    rules:
+      - alert: OracleTableSpaceHighUsage
+        expr: oracledb_tablespace_used_percent{type!="TEMPORARY"} > 85
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: High Table Space Usage in Oracle Database
+          description: The tablespace on the Oracle DB instance `{{ $labels.databaseIdentifier }}` has usage above 85%, specifically in `{{ $labels.tablespace }}`. Current usage is `{{ $value | humanize }}`.
+      - alert: OracleTableSpaceCriticalUsage
+        expr: oracledb_tablespace_used_percent{type!="TEMPORARY"} > 90
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: Critical Table Space Usage in Oracle Database
+          description: The tablespace on the Oracle DB instance `{{ $labels.databaseIdentifier }}` has usage above 90%, specifically in `{{ $labels.tablespace }}`. Current usage is `{{ $value | humanize }}`.
+      - alert: OracleDBDown
+        expr: oracledb_up == 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: Oracle Database Unreachable
+          description: The Oracle Database `{{ $labels.databaseIdentifier }}` is currently unreachable.
+      - alert: OracleSessionHighUtilization
+        expr: oracledb_sessions_utilization_percent > 70
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: High Session Utilization in Oracle Database
+          description: On the Oracle Database `{{ $labels.databaseIdentifier }}`, the session utilization percentage is critically high. Current utilization is `{{ $value | humanize }}`.
+      - alert: OracleRecoveryFileDestinationUsageHigh
+        expr: oracledb_recovery_file_dest_perc_used > 80
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High Recovery percentage usage
+          description: On Database `{{ $labels.databaseIdentifier }}`, recovery space utilization percentage is high. Current Utilization `{{ $value | humanize }}`
+      - alert: OracleBlockingCount
+        expr: oracledb_blocking_count > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: High blocking count
+          description: High blocking count on db `{{ $labels.databaseIdentifier }}`, current `{{ $value | humanize }}`
+      - alert: OracleDatabaseRestarted
+        expr: oracledb_startup_time_seconds < 1200
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: OracleDB Restarted
+          descritption: Oracle `{{ $labels.databaseIdentifier }}` startup time is less than 1200 secounds, current started since `{{ $value | humanize }}`
