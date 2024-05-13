@@ -7,8 +7,9 @@ import {
   aws_events_targets as targets,
   aws_iam as iam,
   aws_ssm as ssm,
-  Duration
+  Duration,
 } from "aws-cdk-lib";
+import {Runtime} from "aws-cdk-lib/aws-lambda"
 import {ExtendedGoFunction} from "truemark-cdk-lib/aws-lambda";
 
 
@@ -95,8 +96,6 @@ export class DatabaseCollector extends Construct {
     const scheduleRule = new events.Rule(this, 'Rule', {
       schedule: events.Schedule.expression('cron(*/5 * * * ? *)')
     })
-
-
     const gofn = new ExtendedGoFunction(this, 'Lambda', {
       entry: path.join(__dirname, '..', 'collector'),
       memorySize: 1024,
@@ -119,10 +118,30 @@ export class DatabaseCollector extends Construct {
       vpcSubnets: {
         subnets: subnetIds.map((id: string) => ec2.Subnet.fromSubnetId(this, `Subnet${id}`, id)),
       },
+      allowPublicSubnet:  true,
       securityGroups: securityGroupIds.map((sgId: string) =>
         ec2.SecurityGroup.fromSecurityGroupId(this, `SG${sgId}`, sgId)
       ),
     })
+    const rdsEventRule = new events.Rule(this, 'RDSEventRule', {
+      eventPattern: {
+        source: ['aws.rds']
+      }
+    })
+    const eventsFn = new ExtendedGoFunction(this, 'EventsLambda', {
+      entry: path.join(__dirname, '..', 'events-collector'),
+      role: role,
+      memorySize: 1024,
+      environment: {
+        PROMETHEUS_REMOTE_WRITE_URL: prometheusUrl,
+      },
+      timeout: Duration.seconds(300),
+      runtime: Runtime.PROVIDED_AL2023,
+      deploymentOptions: {
+        createDeployment: false,
+      },
+    })
+    rdsEventRule.addTarget(new targets.LambdaFunction(eventsFn))
     scheduleRule.addTarget(new targets.LambdaFunction(gofn))
     return gofn
   }
