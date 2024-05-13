@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -43,8 +44,8 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 				}
 			}
 			labels[len(m.Label)+1] = prompb.Label{
-				Name:  "databaseIdentifier", // The label name for the identifier
-				Value: databaseIdentifier,   // The identifier value passed to the function
+				Name:  "databaseIdentifier",                      // The label name for the identifier
+				Value: strings.Split(databaseIdentifier, ".")[0], // The identifier value passed to the function
 			}
 			labels[len(m.Label)+2] = prompb.Label{
 				Name:  "job",                       // The label name for the identifier

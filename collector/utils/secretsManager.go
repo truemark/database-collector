@@ -23,6 +23,12 @@ func ListSecrets(logger zerolog.Logger) *secretsmanager.ListSecretsOutput {
 	svc := getService(logger)
 	input := &secretsmanager.ListSecretsInput{
 		MaxResults: aws.Int64(100),
+		Filters: []*secretsmanager.Filter{
+			{
+				Key:    aws.String("tag-key"),
+				Values: aws.StringSlice([]string{"database-collector:enabled"}),
+			},
+		},
 	}
 	result, err := svc.ListSecrets(input)
 	if err != nil {
