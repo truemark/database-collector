@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -19,7 +18,7 @@ import (
 	"github.com/golang/snappy"
 )
 
-func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, databaseIdentifier string) (*http.Response, error) {
+func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily) (*http.Response, error) {
 	var timeSeries []prompb.TimeSeries
 
 	for _, mf := range metricFamilies {
@@ -32,7 +31,7 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 			}
 
 			ts := prompb.TimeSeries{}
-			labels := make([]prompb.Label, len(m.Label)+3) // +1 for the metric name
+			labels := make([]prompb.Label, len(m.Label)+2) // +1 for the metric name
 			labels[0] = prompb.Label{
 				Name:  "__name__",
 				Value: mf.GetName(), // Assuming the metric name is stored here
@@ -44,12 +43,8 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 				}
 			}
 			labels[len(m.Label)+1] = prompb.Label{
-				Name:  "databaseIdentifier",                      // The label name for the identifier
-				Value: strings.Split(databaseIdentifier, ".")[0], // The identifier value passed to the function
-			}
-			labels[len(m.Label)+2] = prompb.Label{
 				Name:  "job",                       // The label name for the identifier
-				Value: "database-collector-lambda", // The identifier value passed to the function
+				Value: "database-collector-events", // The identifier value passed to the function
 			}
 			ts.Labels = labels
 
