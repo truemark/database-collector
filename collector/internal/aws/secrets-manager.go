@@ -1,46 +1,46 @@
-package utils
+package aws
 
 import (
-	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
-	"github.com/rs/zerolog"
 	"os"
 )
 
-func getService(logger zerolog.Logger) *secretsmanager.SecretsManager {
-	logger.Info().Msg("Initializing AWS service resource.")
+func getService() *secretsmanager.SecretsManager {
 	region := os.Getenv("AWS_REGION")
-	//logger.Info().Msg()
 	sess := session.Must(session.NewSession())
 	svc := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
 	return svc
 }
 
-func ListSecrets(logger zerolog.Logger) *secretsmanager.ListSecretsOutput {
-	logger.Info().Msg("Retrieving Secrets")
-	svc := getService(logger)
+func ListSecrets() *secretsmanager.ListSecretsOutput {
+	svc := getService()
 	input := &secretsmanager.ListSecretsInput{
 		MaxResults: aws.Int64(100),
+		Filters: []*secretsmanager.Filter{
+			{
+				Key:    aws.String("tag-key"),
+				Values: aws.StringSlice([]string{"database-collector:enabled"}),
+			},
+		},
 	}
 	result, err := svc.ListSecrets(input)
 	if err != nil {
-		logger.Error().
-			Err(errors.New(err.Error())).
-			Msg("Failed to list secrets")
+		fmt.Println(err)
 	}
 	return result
 }
 
-func GetSecretsValue(logger zerolog.Logger, secret *string) string {
-	svc := getService(logger)
+func GetSecretsValue(secret *string) string {
+	svc := getService()
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: secret,
 	}
 	result, err := svc.GetSecretValue(input)
 	if err != nil {
-		logger.Error().Msg(err.Error())
+		fmt.Println(err)
 	}
 	return *result.SecretString
 }
