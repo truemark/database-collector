@@ -4,7 +4,9 @@ go 1.22.4
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
+	github.com/aws/aws-lambda-go v1.47.0
 	github.com/aws/aws-sdk-go v1.54.14
+	github.com/aws/aws-secretsmanager-caching-go v1.2.0
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
@@ -15,6 +17,7 @@ require (
 	github.com/prometheus/common v0.55.0
 	github.com/prometheus/mysqld_exporter v0.15.1
 	github.com/prometheus/prometheus v0.53.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/sijms/go-ora/v2 v2.8.19
 )
 

@@ -3,12 +3,15 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promlog"
+	"github.com/robfig/cron/v3"
 	"github.com/truemark/database-collector/exporters/mysql"
 	"github.com/truemark/database-collector/exporters/oracle"
 	"github.com/truemark/database-collector/exporters/postgres"
@@ -39,21 +42,13 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 
 	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string))
 	if err != nil {
-		fmt.Println("Failed to send metrics to APS")
+		fmt.Println("Failed to send metrics to APS", err)
 	} else {
 		fmt.Println("Successfully sent metrics to APS ", response)
 	}
-
-	// Print gathered metrics
-	// for _, mf := range metricFamilies {
-	// 	fmt.Printf("Metric Family: %s\n", *mf.Name)
-	// 	for _, m := range mf.Metric {
-	// 		fmt.Printf("  Metric: %v\n", m)
-	// 	}
-	// }
 }
 
-func main() {
+func HandleRequest() {
 	promlogConfig := &promlog.Config{
 		Level: &promlog.AllowedLevel{},
 	}
@@ -70,7 +65,7 @@ func main() {
 	var wg sync.WaitGroup
 
 	for i := 0; i < len(listSecretsResult.SecretList); i++ {
-		secretValue := aws.GetSecretsValue(listSecretsResult.SecretList[i].Name)
+		secretValue := aws.GetSecretsValue(*listSecretsResult.SecretList[i].Name)
 		secretValueMap := map[string]interface{}{}
 		err := json.Unmarshal([]byte(secretValue), &secretValueMap)
 		if err != nil {
@@ -84,4 +79,28 @@ func main() {
 	}
 
 	wg.Wait()
+}
+
+func main() {
+	mode := os.Getenv("RUN_MODE")
+	if mode == "LAMBDA" {
+		// Run as AWS Lambda function
+		lambda.Start(HandleRequest)
+	} else if mode == "CRON" {
+		fmt.Println("Starting in CRON mode...")
+
+		// Run as internal cron job
+		c := cron.New()
+		_, err := c.AddFunc("@every 1m", HandleRequest) // Run CronJob every minute
+		if err != nil {
+			fmt.Println("Error setting up cron job:", err)
+			return
+		}
+		c.Start()
+
+		// Keep the program running
+		select {}
+	} else {
+		fmt.Println("Invalid RUN_MODE. Set RUN_MODE to either 'LAMBDA' or 'CRON'")
+	}
 }

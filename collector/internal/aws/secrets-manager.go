@@ -5,7 +5,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-secretsmanager-caching-go/secretcache"
 	"os"
+)
+
+var (
+	config = secretcache.CacheConfig{
+		MaxCacheSize: secretcache.DefaultMaxCacheSize + 10,
+		VersionStage: secretcache.DefaultVersionStage,
+		CacheItemTTL: secretcache.DefaultCacheItemTTL,
+	}
+	secretCache, _ = secretcache.New(func(cache *secretcache.Cache) {
+		cache.CacheConfig = config
+	})
 )
 
 func getService() *secretsmanager.SecretsManager {
@@ -33,14 +45,10 @@ func ListSecrets() *secretsmanager.ListSecretsOutput {
 	return result
 }
 
-func GetSecretsValue(secret *string) string {
-	svc := getService()
-	input := &secretsmanager.GetSecretValueInput{
-		SecretId: secret,
-	}
-	result, err := svc.GetSecretValue(input)
+func GetSecretsValue(secret string) string {
+	var result, err = secretCache.GetSecretString(secret)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
-	return *result.SecretString
+	return result
 }
