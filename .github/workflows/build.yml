@@ -17,14 +17,17 @@ jobs:
 
       - name: Test
         run: |
+          cd collector
           go build -v ./...
           go test -v ./...
 
       - name: prepare binary
-        run: go build cmd/collector/main.go  -o database-collector
+        run: |
+          cd collector
+          go build cmd/collector/main.go  -o database-collector
 
       - name: upload binary
         uses: actions/upload-artifact@v4
         with:
           name: database-collector
-          path: database-collector
+          path: collector/database-collector
