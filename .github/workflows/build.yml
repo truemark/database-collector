@@ -24,7 +24,7 @@ jobs:
       - name: prepare binary
         run: |
           cd collector
-          go build cmd/collector/main.go
+          go build cmd/collector/database-collector.go
 
       - name: upload binary
         uses: actions/upload-artifact@v4
