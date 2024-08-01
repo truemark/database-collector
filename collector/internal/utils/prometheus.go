@@ -19,20 +19,20 @@ import (
 	"github.com/golang/snappy"
 )
 
-func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, databaseIdentifier string) (*http.Response, error) {
+func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, identifier string) (*http.Response, error) {
 	var timeSeries []prompb.TimeSeries
 
 	for _, mf := range metricFamilies {
 		for _, m := range mf.Metric {
 			var timestamp int64
 			if m.GetTimestampMs() != 0 {
-				timestamp = m.GetTimestampMs() // Keep milliseconds if APS expects that
+				timestamp = m.GetTimestampMs()
 			} else {
-				timestamp = time.Now().UnixNano() / 1e6 // Current time in milliseconds
+				timestamp = time.Now().UnixNano() / 1e6
 			}
 
 			ts := prompb.TimeSeries{}
-			labels := make([]prompb.Label, len(m.Label)+3) // +1 for the metric name
+			labels := make([]prompb.Label, len(m.Label)+3)
 			labels[0] = prompb.Label{
 				Name:  "__name__",
 				Value: mf.GetName(), // Assuming the metric name is stored here
@@ -44,12 +44,12 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 				}
 			}
 			labels[len(m.Label)+1] = prompb.Label{
-				Name:  "databaseIdentifier",                      // The label name for the identifier
-				Value: strings.Split(databaseIdentifier, ".")[0], // The identifier value passed to the function
+				Name:  "identifier",
+				Value: strings.Split(identifier, ".")[0],
 			}
 			labels[len(m.Label)+2] = prompb.Label{
-				Name:  "job",                // The label name for the identifier
-				Value: "database-collector", // The identifier value passed to the function
+				Name:  "job",
+				Value: "database-collector",
 			}
 			ts.Labels = labels
 
