@@ -19,8 +19,6 @@ import (
 	"github.com/truemark/database-collector/internal/utils"
 )
 
-var registry = prometheus.NewRegistry()
-
 func collectMetrics(secretValueMap map[string]interface{}, engine string, logger log.Logger, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -91,7 +89,11 @@ func main() {
 
 		// Run as internal cron job
 		c := cron.New()
-		_, err := c.AddFunc("@every 1m", HandleRequest) // Run CronJob every minute
+		cronSchedule := os.Getenv("CRON_SCHEDULE")
+		if cronSchedule == "" {
+			cronSchedule = "@every 5m"
+		}
+		_, err := c.AddFunc(cronSchedule, HandleRequest)
 		if err != nil {
 			fmt.Println("Error setting up cron job:", err)
 			return
