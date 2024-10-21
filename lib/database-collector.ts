@@ -17,6 +17,7 @@ import {Runtime} from "aws-cdk-lib/aws-lambda";
 import {Rule} from "aws-cdk-lib/aws-events";
 import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
 import {Duration} from "aws-cdk-lib";
+import {Vpc} from "aws-cdk-lib/aws-ec2";
 
 
 export interface DatabaseCollectorProps {
@@ -24,6 +25,8 @@ export interface DatabaseCollectorProps {
 
 export class DatabaseCollector extends Construct {
   private prometheusUrl = this.node.tryGetContext('prometheusUrl')
+  private vpcId = this.node.tryGetContext('vpcId')
+
   private buildAndDeployRDSEventsCollector() {
     const role = new Role(this, "Role", {
       assumedBy: new ServicePrincipal("lambda.amazonaws.com")
@@ -59,8 +62,13 @@ export class DatabaseCollector extends Construct {
       file: path.join('build', 'Dockerfile'),
       platform: Platform.LINUX_ARM64
     })
+    //TODO const fargateVpc = this.node.tryGetContext
+    const vpc = Vpc.fromLookup(this, 'Vpc', {
+      vpcId: this.vpcId
+    });
+
     const cluster = new StandardFargateCluster(this, "Cluster", {
-      vpcName: "services"
+      vpc: vpc,
     });
     const service = new StandardFargateService(this, 'Service', {
       image: ContainerImage.fromDockerImageAsset(asset),
