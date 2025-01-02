@@ -52,6 +52,7 @@ export class DatabaseCollector extends Construct {
   }
   private buildAndDeployECSFargate() {
     const subnetIds = this.node.tryGetContext('subnetIds').split(',');
+    const vpcName = this.node.tryGetContext('vpcName') || 'services';
 
 
     const asset = new DockerImageAsset(this, 'DatabaseCollectorContainerImage', {
@@ -60,7 +61,7 @@ export class DatabaseCollector extends Construct {
       platform: Platform.LINUX_ARM64
     })
     const cluster = new StandardFargateCluster(this, "Cluster", {
-      vpcName: "services"
+      vpcName: vpcName
     });
     const service = new StandardFargateService(this, 'Service', {
       image: ContainerImage.fromDockerImageAsset(asset),
