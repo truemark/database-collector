@@ -30,13 +30,12 @@ pnpm run build
 3. Deploy the stack:
 
 ```bash
-cdk deploy -c vpcId="" -c subnetIds="" -c securityGroupIds="" -c prometheusUrl="" -c exporterType=""
+cdk deploy -c vpcName="" -c subnetIds="" -c securityGroupIds="" -c prometheusUrl=""
 ```
 
 ## Configuration
 The collector can be configured using context variables in the AWS CDK app. Here are the available options:  
-- `vpcId`: The ID of the VPC where the collector will be deployed.
+- `vpcName=`: The name of the VPC where the collector will be deployed.
 - `subnetIds`: A comma-separated list of subnet IDs where the collector will be deployed.
 - `securityGroupIds`: A comma-separated list of security group IDs to attach to the collector.
-- `exporterType`: The type of exporter to use. Currently, only "prometheus" is supported.
 - `prometheusUrl`: The URL of the Prometheus server where the metrics will be published.

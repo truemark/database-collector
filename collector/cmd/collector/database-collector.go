@@ -28,7 +28,7 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 		mysql.RegisterMySQLCollector(registry, secretValueMap, logger)
 	case "postgres":
 		postgres.RegisterPostgresCollector(registry, secretValueMap, logger)
-	case "oracle":
+	case "oracle", "oracle-ee":
 		oracle.RegisterOracleDBCollector(registry, secretValueMap, logger)
 	}
 
