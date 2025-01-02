@@ -35,7 +35,7 @@ cdk deploy -c vpcName="" -c subnetIds="" -c securityGroupIds="" -c prometheusUrl
 
 ## Configuration
 The collector can be configured using context variables in the AWS CDK app. Here are the available options:  
-- `vpcName=`: The name of the VPC where the collector will be deployed.
+- `vpcName(optional)`: The name of the VPC where the collector will be deployed (default: services). 
 - `subnetIds`: A comma-separated list of subnet IDs where the collector will be deployed.
 - `securityGroupIds`: A comma-separated list of security group IDs to attach to the collector.
 - `prometheusUrl`: The URL of the Prometheus server where the metrics will be published.
