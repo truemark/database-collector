@@ -3,9 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"sync"
-
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -17,6 +14,9 @@ import (
 	"github.com/truemark/database-collector/exporters/postgres"
 	"github.com/truemark/database-collector/internal/aws"
 	"github.com/truemark/database-collector/internal/utils"
+	"log/slog"
+	"os"
+	"sync"
 )
 
 func collectMetrics(secretValueMap map[string]interface{}, engine string, logger log.Logger, wg *sync.WaitGroup) {
@@ -25,10 +25,10 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 	registry := prometheus.NewRegistry()
 	switch engine {
 	case "mysql":
-		mysql.RegisterMySQLCollector(registry, secretValueMap, logger)
+		mysql.RegisterMySQLCollector(registry, secretValueMap, new(slog.Logger))
 	case "postgres":
-		postgres.RegisterPostgresCollector(registry, secretValueMap, logger)
-	case "oracle":
+		postgres.RegisterPostgresCollector(registry, secretValueMap, new(slog.Logger))
+	case "oracle", "oracle-ee":
 		oracle.RegisterOracleDBCollector(registry, secretValueMap, logger)
 	}
 

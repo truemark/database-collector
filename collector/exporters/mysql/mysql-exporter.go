@@ -3,9 +3,8 @@ package mysql
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/mysqld_exporter/collector"
 )
@@ -83,8 +82,8 @@ func NewMySQLScrapers() []collector.Scraper {
 	return filteredScrapers
 }
 
-func RegisterMySQLCollector(registry *prometheus.Registry, secret map[string]interface{}, logger log.Logger) {
-	level.Info(logger).Log("msg", "Registering MySQL collector")
+func RegisterMySQLCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) {
+	logger.Info("Registering MySQL collector")
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%v)/", secret["username"], secret["password"], secret["host"], secret["port"])
 	scrapers := NewMySQLScrapers()
 	mysqlCollector := collector.New(context.Background(), dsn, scrapers, logger)

@@ -2,16 +2,16 @@ package postgres
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/log"
 	"github.com/prometheus-community/postgres_exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 )
 
-func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]interface{}, logger log.Logger) error {
+func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) error {
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	// kingpin.HelpFlag.Short('h')
