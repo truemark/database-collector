@@ -8,7 +8,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promlog"
-	"github.com/robfig/cron/v3"
+	cron "github.com/robfig/cron/v3"
 	"github.com/truemark/database-collector/exporters/mysql"
 	"github.com/truemark/database-collector/exporters/oracle"
 	"github.com/truemark/database-collector/exporters/postgres"
@@ -23,11 +23,15 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 	defer wg.Done()
 
 	registry := prometheus.NewRegistry()
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo, // Adjust log level as needed
+	})
+	slogLogger := slog.New(handler)
 	switch engine {
 	case "mysql":
-		mysql.RegisterMySQLCollector(registry, secretValueMap, new(slog.Logger))
+		mysql.RegisterMySQLCollector(registry, secretValueMap, slogLogger)
 	case "postgres":
-		postgres.RegisterPostgresCollector(registry, secretValueMap, new(slog.Logger))
+		postgres.RegisterPostgresCollector(registry, secretValueMap, slogLogger)
 	case "oracle", "oracle-ee":
 		oracle.RegisterOracleDBCollector(registry, secretValueMap, logger)
 	}

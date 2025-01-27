@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"fmt"
+	"github.com/alecthomas/kingpin/v2"
 	"log/slog"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus-community/postgres_exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/promlog"
@@ -18,7 +18,6 @@ func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]
 	kingpin.Parse()
 
 	dsn := fmt.Sprintf("postgresql://%s:%s@%s:%v/%s?sslmode=disable", secret["username"], secret["password"], secret["host"], secret["port"], secret["dbname"])
-
 	pgCollector, err := collector.NewPostgresCollector(
 		logger,
 		[]string{}, // no custom queries
