@@ -60,6 +60,7 @@ export class DatabaseCollector extends Construct {
       file: path.join('build', 'Dockerfile'),
       platform: Platform.LINUX_ARM64
     })
+
     const cluster = new StandardFargateCluster(this, "Cluster", {
       vpcName: vpcName
     });
