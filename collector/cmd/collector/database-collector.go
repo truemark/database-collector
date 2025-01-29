@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -16,10 +17,12 @@ import (
 	"github.com/truemark/database-collector/internal/utils"
 	"log/slog"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 )
 
-func collectMetrics(secretValueMap map[string]interface{}, engine string, logger log.Logger, wg *sync.WaitGroup) {
+func collectMetrics(ctx context.Context, secretValueMap map[string]interface{}, engine string, logger log.Logger, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	registry := prometheus.NewRegistry()
@@ -27,6 +30,7 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 		Level: slog.LevelInfo, // Adjust log level as needed
 	})
 	slogLogger := slog.New(handler)
+
 	switch engine {
 	case "mysql":
 		mysql.RegisterMySQLCollector(registry, secretValueMap, slogLogger)
@@ -44,46 +48,60 @@ func collectMetrics(secretValueMap map[string]interface{}, engine string, logger
 
 	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string))
 	if err != nil {
-		fmt.Println("Failed to send metrics to APS", err)
+		level.Error(logger).Log("msg", "Failed to send metrics to APS", "err", err)
 	} else {
-		fmt.Println("Successfully sent metrics to APS ", response)
+		level.Info(logger).Log("msg", "Successfully sent metrics to APS", "response", response)
 	}
 }
 
-func HandleRequest() {
+func HandleRequest(ctx context.Context) {
 	promlogConfig := &promlog.Config{
 		Level: &promlog.AllowedLevel{},
 	}
-	if err := promlogConfig.Level.Set("info"); err != nil {
-		fmt.Println("Error setting log level:", err)
-		return
-	}
 
 	logger := promlog.New(promlogConfig)
-
 	level.Info(logger).Log("msg", "Starting database collector")
 
 	listSecretsResult := aws.ListSecrets()
+
 	var wg sync.WaitGroup
+	var sem = make(chan struct{}, 10) // Limit to 10 concurrent goroutines
 
 	for i := 0; i < len(listSecretsResult.SecretList); i++ {
 		secretValue := aws.GetSecretsValue(*listSecretsResult.SecretList[i].Name)
+
 		secretValueMap := map[string]interface{}{}
-		err := json.Unmarshal([]byte(secretValue), &secretValueMap)
-		if err != nil {
-			fmt.Println(err)
+		if err := json.Unmarshal([]byte(secretValue), &secretValueMap); err != nil {
+			level.Error(logger).Log("msg", "Failed to unmarshal secret value", "secret", *listSecretsResult.SecretList[i].Name, "err", err)
 			continue
 		}
 
 		engine := secretValueMap["engine"].(string)
 		wg.Add(1)
-		go collectMetrics(secretValueMap, engine, logger, &wg)
+		sem <- struct{}{} // Acquire a slot
+		go func(secretValueMap map[string]interface{}, engine string) {
+			defer wg.Done()
+			defer func() { <-sem }() // Release the slot
+			collectMetrics(ctx, secretValueMap, engine, logger, &wg)
+		}(secretValueMap, engine)
 	}
 
 	wg.Wait()
+	level.Info(logger).Log("msg", "All goroutines have completed")
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle interrupts
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		cancel() // Cancel the context on interrupt
+	}()
+
 	mode := os.Getenv("RUN_MODE")
 	if mode == "LAMBDA" {
 		// Run as AWS Lambda function
@@ -97,7 +115,9 @@ func main() {
 		if cronSchedule == "" {
 			cronSchedule = "@every 5m"
 		}
-		_, err := c.AddFunc(cronSchedule, HandleRequest)
+		_, err := c.AddFunc(cronSchedule, func() {
+			HandleRequest(ctx)
+		})
 		if err != nil {
 			fmt.Println("Error setting up cron job:", err)
 			return
