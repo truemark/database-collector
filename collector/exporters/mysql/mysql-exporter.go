@@ -82,10 +82,11 @@ func NewMySQLScrapers() []collector.Scraper {
 	return filteredScrapers
 }
 
-func RegisterMySQLCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) {
+func RegisterMySQLCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) *collector.Exporter {
 	logger.Info("Registering MySQL collector")
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%v)/", secret["username"], secret["password"], secret["host"], secret["port"])
 	scrapers := NewMySQLScrapers()
 	mysqlCollector := collector.New(context.Background(), dsn, scrapers, logger)
 	registry.MustRegister(mysqlCollector)
+	return mysqlCollector
 }
