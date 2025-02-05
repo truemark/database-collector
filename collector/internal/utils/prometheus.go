@@ -49,7 +49,7 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 			}
 			labels[len(m.Label)+2] = prompb.Label{
 				Name:  "job",
-				Value: "database-collector",
+				Value: "database-collector-local",
 			}
 			ts.Labels = labels
 

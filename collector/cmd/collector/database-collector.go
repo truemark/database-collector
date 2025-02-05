@@ -26,20 +26,23 @@ type DatabaseInstance struct {
 }
 
 var (
-	collectors          = make(map[string]prometheus.Collector) // Store registered collectors
-	collectorsMutex     = sync.RWMutex{}                        // Mutex to ensure thread safety
-	secretCheckInterval = 15 * time.Minute                      // How often to check for new secrets
+	collectors          = make(map[string]map[string]prometheus.Collector) // Store collectors per engine
+	registries          = make(map[string]*prometheus.Registry)            // Store separate registries for each engine
+	collectorsMutex     = sync.RWMutex{}                                   // Mutex for safe access
+	secretCheckInterval = 1 * time.Minute                                  // How often to check for new secrets
 )
 
-func InitializeCollectors(registry *prometheus.Registry, logger log.Logger) map[string]prometheus.Collector {
-	dbInstances := make(map[string]DatabaseInstance)
-	collectors := make(map[string]prometheus.Collector)
-
+func InitializeCollectors(logger log.Logger) {
 	listSecretsResult := aws.ListSecrets()
 	slogLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
+	collectorsMutex.Lock() // Lock for safe update
+	defer collectorsMutex.Unlock()
+
 	for _, secretItem := range listSecretsResult.SecretList {
-		secretValue := aws.GetSecretsValue(*secretItem.Name)
+		secretName := *secretItem.Name
+
+		secretValue := aws.GetSecretsValue(secretName)
 		secretValueMap := map[string]interface{}{}
 		err := json.Unmarshal([]byte(secretValue), &secretValueMap)
 		if err != nil {
@@ -48,17 +51,26 @@ func InitializeCollectors(registry *prometheus.Registry, logger log.Logger) map[
 		}
 
 		engine := secretValueMap["engine"].(string)
-		dbInstances[*secretItem.Name] = DatabaseInstance{Engine: engine, Secret: secretValueMap}
 
-		// Initialize collectors once and store in map
+		// Ensure each database has its own registry
+		if _, exists := registries[secretName]; !exists {
+			registries[secretName] = prometheus.NewRegistry()
+		}
+
+		// Ensure collectors map exists for this database
+		if _, exists := collectors[secretName]; !exists {
+			collectors[secretName] = make(map[string]prometheus.Collector)
+		}
+
+		// Register new collector for this specific database
 		var collector prometheus.Collector
 		switch engine {
 		case "mysql":
-			collector = mysql.RegisterMySQLCollector(registry, secretValueMap, slogLogger)
+			collector = mysql.RegisterMySQLCollector(registries[secretName], secretValueMap, slogLogger)
 		case "postgres":
-			collector = postgres.RegisterPostgresCollector(registry, secretValueMap, slogLogger)
+			collector = postgres.RegisterPostgresCollector(registries[secretName], secretValueMap, slogLogger)
 		case "oracle", "oracle-ee", "custom-oracle-ee":
-			collector = oracle.RegisterOracleDBCollector(registry, secretValueMap, logger)
+			collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 		default:
 			fmt.Println("Unsupported database engine:", engine)
 			continue
@@ -69,22 +81,27 @@ func InitializeCollectors(registry *prometheus.Registry, logger log.Logger) map[
 			continue
 		}
 
-		collectors[*secretItem.Name] = collector
+		collectors[secretName][engine] = collector
 	}
-
-	return collectors
 }
 
-func RefreshSecrets(registry *prometheus.Registry, logger log.Logger) {
-	ticker := time.NewTicker(secretCheckInterval) // Run every 1 minute (adjustable)
+func RefreshSecrets(logger log.Logger) {
+	ticker := time.NewTicker(secretCheckInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		fmt.Println("Refreshing secrets and updating collectors...")
 		listSecretsResult := aws.ListSecrets()
-		newCollectors := make(map[string]prometheus.Collector)
 
-		collectorsMutex.Lock() // Lock for safe update
+		collectorsMutex.Lock()
+
+		// Step 1: Track existing database instances
+		existingSecrets := make(map[string]bool)
+		for _, secretItem := range listSecretsResult.SecretList {
+			existingSecrets[*secretItem.Name] = true
+		}
+
+		// Step 2: Add new secrets
 		for _, secretItem := range listSecretsResult.SecretList {
 			secretName := *secretItem.Name
 
@@ -93,7 +110,7 @@ func RefreshSecrets(registry *prometheus.Registry, logger log.Logger) {
 				continue
 			}
 
-			// Fetch secret value
+			// Fetch new secret
 			secretValue := aws.GetSecretsValue(secretName)
 			secretValueMap := map[string]interface{}{}
 			err := json.Unmarshal([]byte(secretValue), &secretValueMap)
@@ -103,17 +120,28 @@ func RefreshSecrets(registry *prometheus.Registry, logger log.Logger) {
 			}
 
 			engine := secretValueMap["engine"].(string)
+
+			// Ensure each database has its own registry
+			if _, exists := registries[secretName]; !exists {
+				registries[secretName] = prometheus.NewRegistry()
+			}
+
+			// Ensure collectors map exists for this database
+			if _, exists := collectors[secretName]; !exists {
+				collectors[secretName] = make(map[string]prometheus.Collector)
+			}
+
 			slogLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 			// Register new collector
 			var collector prometheus.Collector
 			switch engine {
 			case "mysql":
-				collector = mysql.RegisterMySQLCollector(registry, secretValueMap, slogLogger)
+				collector = mysql.RegisterMySQLCollector(registries[secretName], secretValueMap, slogLogger)
 			case "postgres":
-				collector = postgres.RegisterPostgresCollector(registry, secretValueMap, slogLogger)
+				collector = postgres.RegisterPostgresCollector(registries[secretName], secretValueMap, slogLogger)
 			case "oracle", "oracle-ee", "custom-oracle-ee":
-				collector = oracle.RegisterOracleDBCollector(registry, secretValueMap, logger)
+				collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 			default:
 				fmt.Println("Unsupported database engine:", engine)
 				continue
@@ -124,32 +152,26 @@ func RefreshSecrets(registry *prometheus.Registry, logger log.Logger) {
 				continue
 			}
 
-			// Store new collector
-			newCollectors[secretName] = collector
+			collectors[secretName][engine] = collector
 			fmt.Println("Added new collector for:", secretName)
 		}
 
-		// Find removed secrets and unregister their collectors
-		for secretName, collector := range collectors {
-			found := false
-			for _, secretItem := range listSecretsResult.SecretList {
-				if *secretItem.Name == secretName {
-					found = true
-					break
+		// Step 3: Remove secrets that no longer exist
+		for secretName, dbCollectors := range collectors {
+			if _, found := existingSecrets[secretName]; !found {
+				// Unregister all collectors for this database
+				for _, collector := range dbCollectors {
+					registries[secretName].Unregister(collector)
 				}
-			}
-			if !found {
-				// Unregister collector
-				registry.Unregister(collector)
+
+				// Ensure all running Goroutines for this database are stopped
 				delete(collectors, secretName)
+				delete(registries, secretName)
+
 				fmt.Println("Removed collector for deleted secret:", secretName)
 			}
 		}
 
-		// Add new collectors to global map
-		for secretName, collector := range newCollectors {
-			collectors[secretName] = collector
-		}
 		collectorsMutex.Unlock()
 	}
 }
@@ -169,27 +191,46 @@ func collectMetrics(collector prometheus.Collector, secretValueMap map[string]in
 	}
 }
 
-func HandleRequest(registry *prometheus.Registry, logger log.Logger) {
+func HandleRequest(logger log.Logger) {
 	level.Info(logger).Log("msg", "Starting database collector")
 
 	var wg sync.WaitGroup
 
 	collectorsMutex.RLock() // Lock for safe read
-	for secretName, collector := range collectors {
-		wg.Add(1)
-		go func(secretName string, collector prometheus.Collector) {
-			defer wg.Done()
+	for secretName, dbCollectors := range collectors {
+		// Ensure the database still exists before proceeding
+		if _, exists := registries[secretName]; !exists {
+			continue
+		}
 
-			// Fetch latest secret value
-			secretValue := aws.GetSecretsValue(secretName)
-			secretValueMap := map[string]interface{}{}
-			if err := json.Unmarshal([]byte(secretValue), &secretValueMap); err != nil {
-				fmt.Println("Error parsing secret:", err)
-				return
-			}
+		dbRegistry := registries[secretName] // Get the database-specific registry
 
-			collectMetrics(collector, secretValueMap, logger, registry)
-		}(secretName, collector)
+		for engine, collector := range dbCollectors {
+			wg.Add(1)
+			go func(secretName, engine string, collector prometheus.Collector, registry *prometheus.Registry) {
+				defer wg.Done()
+
+				// Fetch latest secret value
+				secretValue := aws.GetSecretsValue(secretName)
+				secretValueMap := map[string]interface{}{}
+				if err := json.Unmarshal([]byte(secretValue), &secretValueMap); err != nil {
+					fmt.Println("Error parsing secret:", err)
+					return
+				}
+
+				// Ensure the database still exists before collecting metrics
+				collectorsMutex.RLock()
+				_, dbStillExists := collectors[secretName]
+				collectorsMutex.RUnlock()
+
+				if !dbStillExists {
+					fmt.Println("Skipping metrics collection for removed database:", secretName)
+					return
+				}
+
+				collectMetrics(collector, secretValueMap, logger, registry)
+			}(secretName, engine, collector, dbRegistry)
+		}
 	}
 	collectorsMutex.RUnlock() // Unlock after reading
 
@@ -197,41 +238,47 @@ func HandleRequest(registry *prometheus.Registry, logger log.Logger) {
 }
 
 func lambdaHandler(logger log.Logger) func() {
-	registry := prometheus.NewRegistry()
 	return func() {
-		HandleRequest(registry, logger)
+		HandleRequest(logger)
 	}
 }
 
 func main() {
+	// Initialize logging
 	promlogConfig := &promlog.Config{Level: &promlog.AllowedLevel{}}
 	if err := promlogConfig.Level.Set("info"); err != nil {
 		fmt.Println("Error setting log level:", err)
 		return
 	}
-
 	logger := promlog.New(promlogConfig)
+
 	mode := os.Getenv("RUN_MODE")
-	registry := prometheus.NewRegistry()
 
-	// Load existing secrets at startup
-	collectors = InitializeCollectors(registry, logger)
+	// Initialize registries for each database engine
+	registries["mysql"] = prometheus.NewRegistry()
+	registries["postgres"] = prometheus.NewRegistry()
+	registries["oracle"] = prometheus.NewRegistry()
 
-	// Start background secret refresh
-	go RefreshSecrets(registry, logger) // Run in a separate goroutine
+	// Load initial database collectors
+	InitializeCollectors(logger)
+
+	// Start background secret refresh process
+	go RefreshSecrets(logger) // Runs in a separate goroutine
 
 	if mode == "LAMBDA" {
-		lambda.Start(func() { HandleRequest(registry, logger) })
+		// AWS Lambda Execution
+		lambda.Start(func() { lambdaHandler(logger) })
 	} else if mode == "CRON" {
 		fmt.Println("Starting in CRON mode...")
 
+		// Run as internal cron job
 		c := cron.New()
 		cronSchedule := os.Getenv("CRON_SCHEDULE")
 		if cronSchedule == "" {
 			cronSchedule = "@every 10s"
 		}
 		_, err := c.AddFunc(cronSchedule, func() {
-			HandleRequest(registry, logger)
+			HandleRequest(logger)
 		})
 		if err != nil {
 			fmt.Println("Error setting up cron job:", err)
