@@ -29,7 +29,7 @@ var (
 	collectors          = make(map[string]map[string]prometheus.Collector) // Store collectors per engine
 	registries          = make(map[string]*prometheus.Registry)            // Store separate registries for each engine
 	collectorsMutex     = sync.RWMutex{}                                   // Mutex for safe access
-	secretCheckInterval = 1 * time.Minute                                  // How often to check for new secrets
+	secretCheckInterval = 15 * time.Minute                                 // How often to check for new secrets
 )
 
 func InitializeCollectors(logger log.Logger) {
