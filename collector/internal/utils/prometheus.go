@@ -32,7 +32,7 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 			}
 
 			ts := prompb.TimeSeries{}
-			labels := make([]prompb.Label, len(m.Label)+3)
+			labels := make([]prompb.Label, len(m.Label)+5)
 			labels[0] = prompb.Label{
 				Name:  "__name__",
 				Value: mf.GetName(), // Assuming the metric name is stored here
@@ -51,6 +51,15 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 				Name:  "job",
 				Value: "database-collector",
 			}
+			labels[len(m.Label)+3] = prompb.Label{
+				Name:  "region",
+				Value: os.Getenv("AWS_REGION"),
+			}
+			labels[len(m.Label)+4] = prompb.Label{
+				Name:  "accountId",
+				Value: os.Getenv("AWS_ACCOUNT_ID"),
+			}
+			// add accountId and region as labels
 			ts.Labels = labels
 
 			var value float64
