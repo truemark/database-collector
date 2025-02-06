@@ -176,14 +176,14 @@ func RefreshSecrets(logger log.Logger) {
 	}
 }
 
-func collectMetrics(collector prometheus.Collector, secretValueMap map[string]interface{}, logger log.Logger, registry *prometheus.Registry) {
+func collectMetrics(collector prometheus.Collector, secretValueMap map[string]interface{}, logger log.Logger, registry *prometheus.Registry, engine string) {
 	metricFamilies, err := registry.Gather()
 	if err != nil {
 		level.Error(logger).Log("msg", "Error gathering metrics", "err", err)
 		return
 	}
 
-	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string))
+	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string), engine)
 	if err != nil {
 		fmt.Println("Failed to send metrics to APS", err)
 	} else {
@@ -228,7 +228,7 @@ func HandleRequest(logger log.Logger) {
 					return
 				}
 
-				collectMetrics(collector, secretValueMap, logger, registry)
+				collectMetrics(collector, secretValueMap, logger, registry, engine)
 			}(secretName, engine, collector, dbRegistry)
 		}
 	}

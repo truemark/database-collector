@@ -19,7 +19,7 @@ import (
 	"github.com/golang/snappy"
 )
 
-func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, identifier string) (*http.Response, error) {
+func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.MetricFamily, identifier string, engine string) (*http.Response, error) {
 	var timeSeries []prompb.TimeSeries
 
 	for _, mf := range metricFamilies {
@@ -32,7 +32,7 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 			}
 
 			ts := prompb.TimeSeries{}
-			labels := make([]prompb.Label, len(m.Label)+5)
+			labels := make([]prompb.Label, len(m.Label)+6)
 			labels[0] = prompb.Label{
 				Name:  "__name__",
 				Value: mf.GetName(), // Assuming the metric name is stored here
@@ -58,6 +58,10 @@ func ConvertMetricFamilyToTimeSeries(metricFamilies []*ioprometheusclient.Metric
 			labels[len(m.Label)+4] = prompb.Label{
 				Name:  "accountId",
 				Value: os.Getenv("AWS_ACCOUNT_ID"),
+			}
+			labels[len(m.Label)+5] = prompb.Label{
+				Name:  "engine",
+				Value: engine,
 			}
 			// add accountId and region as labels
 			ts.Labels = labels
