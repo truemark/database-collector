@@ -17,6 +17,7 @@ import {Runtime} from "aws-cdk-lib/aws-lambda";
 import {Rule} from "aws-cdk-lib/aws-events";
 import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
 import {Duration} from "aws-cdk-lib";
+import {Stack} from "aws-cdk-lib";
 
 
 export interface DatabaseCollectorProps {
@@ -72,7 +73,9 @@ export class DatabaseCollector extends Construct {
       desiredCount: 1,
       environment: {
         RUN_MODE: "CRON",
-        PROMETHEUS_REMOTE_WRITE_URL: this.prometheusUrl
+        PROMETHEUS_REMOTE_WRITE_URL: this.prometheusUrl,
+        AWS_REGION: Stack.of(this).region,
+        AWS_ACCOUNT_ID: Stack.of(this).account
       },
       vpcSubnets: {
         subnetFilters: [SubnetFilter.byIds(subnetIds)]

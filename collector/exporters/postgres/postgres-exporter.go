@@ -11,7 +11,8 @@ import (
 	"github.com/prometheus/common/promlog/flag"
 )
 
-func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) error {
+func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) *collector.PostgresCollector {
+	logger.Info("Registering Postgres collector")
 	promlogConfig := &promlog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	// kingpin.HelpFlag.Short('h')
@@ -29,5 +30,5 @@ func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]
 	} else {
 		registry.MustRegister(pgCollector)
 	}
-	return nil
+	return pgCollector
 }
