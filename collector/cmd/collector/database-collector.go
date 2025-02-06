@@ -88,7 +88,6 @@ func InitializeCollectors(logger log.Logger) {
 func RefreshSecrets(logger log.Logger) {
 	ticker := time.NewTicker(secretCheckInterval)
 	defer ticker.Stop()
-	defer collectorsMutex.Unlock()
 
 	for range ticker.C {
 		fmt.Println("Refreshing secrets and updating collectors...")
@@ -172,6 +171,8 @@ func RefreshSecrets(logger log.Logger) {
 				fmt.Println("Removed collector for deleted secret:", secretName)
 			}
 		}
+
+		collectorsMutex.Unlock()
 	}
 }
 
@@ -274,7 +275,7 @@ func main() {
 		c := cron.New()
 		cronSchedule := os.Getenv("CRON_SCHEDULE")
 		if cronSchedule == "" {
-			cronSchedule = "@every 10s"
+			cronSchedule = "@every 5m"
 		}
 		_, err := c.AddFunc(cronSchedule, func() {
 			HandleRequest(logger)

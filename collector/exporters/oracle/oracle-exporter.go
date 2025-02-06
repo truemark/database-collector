@@ -10,6 +10,7 @@ import (
 )
 
 func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]interface{}, logger log.Logger) *collector.Exporter {
+	level.Info(logger).Log("msg", "Registering OracleDB collector")
 	dsn := fmt.Sprintf("oracle://%s:%s@%s:%v/%s", secret["username"], secret["password"], secret["host"], secret["port"], secret["dbname"])
 	config := &collector.Config{
 		DSN:                dsn,
