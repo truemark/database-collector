@@ -18,7 +18,7 @@ func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]
 	// kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 
-	dsn := fmt.Sprintf("postgresql://%s:%s@%s:%v/%s?sslmode=disable", secret["username"], secret["password"], secret["host"], secret["port"], secret["dbname"])
+	dsn := fmt.Sprintf("postgresql://%s:%s@%s:%v/%s?sslmode=disable&connect_timeout=10", secret["username"], secret["password"], secret["host"], secret["port"], secret["dbname"])
 	pgCollector, err := collector.NewPostgresCollector(
 		logger,
 		[]string{}, // no custom queries

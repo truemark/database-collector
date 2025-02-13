@@ -56,7 +56,7 @@ func handler(ctx context.Context, e events.CloudWatchEvent) {
 		registry,
 	}
 	metricFamilies, err := gatherers.Gather()
-	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, event.EventID)
+	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, event.EventID, "NA")
 	if err != nil {
 		fmt.Println(err, "Failed to convert metric family to time series")
 	} else {
