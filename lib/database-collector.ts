@@ -41,6 +41,7 @@ export class DatabaseCollector extends Construct {
       memorySize: 1024,
       environment: {
         PROMETHEUS_REMOTE_WRITE_URL: this.prometheusUrl,
+        AWS_ACCOUNT_ID: Stack.of(this).account
       },
       timeout: Duration.seconds(300),
       runtime: Runtime.PROVIDED_AL2023,
