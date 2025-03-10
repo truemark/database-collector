@@ -10,7 +10,7 @@ import (
 )
 
 func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) *collector.Exporter {
-	logger.Info("msg", "Registering OracleDB collector")
+	logger.Info("Registering OracleDB collector")
 	dsn := fmt.Sprintf("%s:%v/%s", secret["host"], secret["port"], secret["dbname"])
 	config := &collector.Config{
 		User:               secret["username"].(string),
@@ -25,7 +25,7 @@ func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]
 
 	oracleExporter, err := collector.NewExporter(logger, config)
 	if err != nil {
-		logger.Error("unable to connect to DB", err)
+		logger.Error("unable to connect to DB", "error", err)
 	}
 
 	registry.MustRegister(oracleExporter)

@@ -18,11 +18,6 @@ import (
 	"time"
 )
 
-type DatabaseInstance struct {
-	Engine string
-	Secret map[string]interface{}
-}
-
 var (
 	collectors          = make(map[string]map[string]prometheus.Collector) // Store collectors per engine
 	registries          = make(map[string]*prometheus.Registry)            // Store separate registries for each engine
@@ -70,12 +65,12 @@ func InitializeCollectors(logger *slog.Logger) {
 		case "oracle", "oracle-ee", "custom-oracle-ee":
 			collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 		default:
-			logger.Warn("Unsupported database engine:", engine)
+			logger.Warn("Unsupported database engine:", "engine", engine)
 			continue
 		}
 
 		if err != nil {
-			logger.Warn("Error initializing collector:", err)
+			logger.Warn("Error initializing collector:", "error", err)
 			continue
 		}
 
@@ -141,17 +136,17 @@ func RefreshSecrets(logger *slog.Logger) {
 			case "oracle", "oracle-ee", "custom-oracle-ee":
 				collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 			default:
-				logger.Warn("Unsupported database engine:", engine)
+				logger.Warn("Unsupported database engine:", "engine", engine)
 				continue
 			}
 
 			if err != nil {
-				logger.Warn("Error registering new collector:", err)
+				logger.Warn("Error registering new collector:", "error", err)
 				continue
 			}
 
 			collectors[secretName][engine] = collector
-			logger.Info("Added new collector for:", secretName)
+			logger.Info("Added new collector for: ", "SecretName", secretName)
 		}
 
 		// Step 3: Remove secrets that no longer exist
@@ -166,7 +161,7 @@ func RefreshSecrets(logger *slog.Logger) {
 				delete(collectors, secretName)
 				delete(registries, secretName)
 
-				logger.Info("Removed collector for deleted secret:", secretName)
+				logger.Info("Removed collector for deleted secret:", "secretName", secretName)
 			}
 		}
 
@@ -177,15 +172,15 @@ func RefreshSecrets(logger *slog.Logger) {
 func collectMetrics(collector prometheus.Collector, secretValueMap map[string]interface{}, logger *slog.Logger, registry *prometheus.Registry, engine string) {
 	metricFamilies, err := registry.Gather()
 	if err != nil {
-		logger.Error("msg", "Error gathering metrics", "err", err)
+		logger.Error("Error gathering metrics", "error", err)
 		return
 	}
 
 	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string), engine)
 	if err != nil {
-		logger.Error("Failed to send metrics to APS", err)
+		logger.Error("Failed to send metrics to APS", "error", err)
 	} else {
-		logger.Info("Successfully sent metrics to APS ", response)
+		logger.Info("Successfully sent metrics to APS ", "response", response)
 	}
 }
 
@@ -212,7 +207,7 @@ func HandleRequest(logger *slog.Logger) {
 				secretValue := aws.GetSecretsValue(secretName)
 				secretValueMap := map[string]interface{}{}
 				if err := json.Unmarshal([]byte(secretValue), &secretValueMap); err != nil {
-					fmt.Println("Error parsing secret:", err)
+					logger.Info("Error parsing secret:", "error", err)
 					return
 				}
 
