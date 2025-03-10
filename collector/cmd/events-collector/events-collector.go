@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
@@ -9,11 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/truemark/database-collector/internal/utils"
 )
-
-type Event struct {
-	Detail    json.RawMessage `json:"Detail"`
-	AccountID string          `json:"AccountID"`
-}
 
 type RdsEventMessage struct {
 	EventCategories  []string `json:"EventCategories"`
@@ -33,7 +27,7 @@ var EventsCounter = prometheus.NewCounterVec(
 	[]string{"event_id", "event_message", "event_source"},
 )
 
-func handler(ctx context.Context, e events.CloudWatchEvent) {
+func handler(e events.CloudWatchEvent) {
 	registry := prometheus.NewRegistry()
 	registry.Unregister(prometheus.NewGoCollector())
 	registry.Unregister(prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
@@ -56,7 +50,7 @@ func handler(ctx context.Context, e events.CloudWatchEvent) {
 		registry,
 	}
 	metricFamilies, err := gatherers.Gather()
-	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, event.EventID)
+	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, event.EventID, "NA")
 	if err != nil {
 		fmt.Println(err, "Failed to convert metric family to time series")
 	} else {
