@@ -1,0 +1,17 @@
+[[metric]]
+context = "long_running_sessions"
+metricsdesc = { session_duration_hours= "Session duration in hours for sessions running longer than 8 hours." }
+request = """
+SELECT   s.sid
+        ,s.serial# AS serial
+        ,s.username
+        ,s.logon_time
+        ,ROUND((SYSDATE - s.logon_time) * 24, 2) AS session_duration_hours
+        ,s.*
+FROM     v$session s
+WHERE   s.username IS NOT NULL
+AND     ROUND((SYSDATE - s.logon_time) * 24, 2) > 8
+AND     s.username LIKE 'SDM%'
+ORDER BY ROUND((SYSDATE - s.logon_time) * 24, 2) DESC
+"""
+labels = ["sid", "serial", "username"]

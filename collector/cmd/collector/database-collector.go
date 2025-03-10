@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/promslog"
 	cron "github.com/robfig/cron/v3"
 	"github.com/truemark/database-collector/exporters/mysql"
 	"github.com/truemark/database-collector/exporters/oracle"
@@ -32,7 +30,7 @@ var (
 	secretCheckInterval = 15 * time.Minute                                 // How often to check for new secrets
 )
 
-func InitializeCollectors(logger log.Logger) {
+func InitializeCollectors(logger *slog.Logger) {
 	listSecretsResult := aws.ListSecrets()
 	slogLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -72,12 +70,12 @@ func InitializeCollectors(logger log.Logger) {
 		case "oracle", "oracle-ee", "custom-oracle-ee":
 			collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 		default:
-			fmt.Println("Unsupported database engine:", engine)
+			logger.Warn("Unsupported database engine:", engine)
 			continue
 		}
 
 		if err != nil {
-			fmt.Println("Error initializing collector:", err)
+			logger.Warn("Error initializing collector:", err)
 			continue
 		}
 
@@ -85,12 +83,12 @@ func InitializeCollectors(logger log.Logger) {
 	}
 }
 
-func RefreshSecrets(logger log.Logger) {
+func RefreshSecrets(logger *slog.Logger) {
 	ticker := time.NewTicker(secretCheckInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		fmt.Println("Refreshing secrets and updating collectors...")
+		logger.Info("Refreshing secrets and updating collectors...")
 		listSecretsResult := aws.ListSecrets()
 
 		collectorsMutex.Lock()
@@ -143,17 +141,17 @@ func RefreshSecrets(logger log.Logger) {
 			case "oracle", "oracle-ee", "custom-oracle-ee":
 				collector = oracle.RegisterOracleDBCollector(registries[secretName], secretValueMap, logger)
 			default:
-				fmt.Println("Unsupported database engine:", engine)
+				logger.Warn("Unsupported database engine:", engine)
 				continue
 			}
 
 			if err != nil {
-				fmt.Println("Error registering new collector:", err)
+				logger.Warn("Error registering new collector:", err)
 				continue
 			}
 
 			collectors[secretName][engine] = collector
-			fmt.Println("Added new collector for:", secretName)
+			logger.Info("Added new collector for:", secretName)
 		}
 
 		// Step 3: Remove secrets that no longer exist
@@ -168,7 +166,7 @@ func RefreshSecrets(logger log.Logger) {
 				delete(collectors, secretName)
 				delete(registries, secretName)
 
-				fmt.Println("Removed collector for deleted secret:", secretName)
+				logger.Info("Removed collector for deleted secret:", secretName)
 			}
 		}
 
@@ -176,23 +174,23 @@ func RefreshSecrets(logger log.Logger) {
 	}
 }
 
-func collectMetrics(collector prometheus.Collector, secretValueMap map[string]interface{}, logger log.Logger, registry *prometheus.Registry, engine string) {
+func collectMetrics(collector prometheus.Collector, secretValueMap map[string]interface{}, logger *slog.Logger, registry *prometheus.Registry, engine string) {
 	metricFamilies, err := registry.Gather()
 	if err != nil {
-		level.Error(logger).Log("msg", "Error gathering metrics", "err", err)
+		logger.Error("msg", "Error gathering metrics", "err", err)
 		return
 	}
 
 	response, err := utils.ConvertMetricFamilyToTimeSeries(metricFamilies, secretValueMap["host"].(string), engine)
 	if err != nil {
-		fmt.Println("Failed to send metrics to APS", err)
+		logger.Error("Failed to send metrics to APS", err)
 	} else {
-		fmt.Println("Successfully sent metrics to APS ", response)
+		logger.Info("Successfully sent metrics to APS ", response)
 	}
 }
 
-func HandleRequest(logger log.Logger) {
-	level.Info(logger).Log("msg", "Starting database collector")
+func HandleRequest(logger *slog.Logger) {
+	logger.Info("Starting database collector")
 
 	var wg sync.WaitGroup
 
@@ -237,7 +235,7 @@ func HandleRequest(logger log.Logger) {
 	wg.Wait()
 }
 
-func lambdaHandler(logger log.Logger) func() {
+func lambdaHandler(logger *slog.Logger) func() {
 	return func() {
 		HandleRequest(logger)
 	}
@@ -245,12 +243,12 @@ func lambdaHandler(logger log.Logger) func() {
 
 func main() {
 	// Initialize logging
-	promlogConfig := &promlog.Config{Level: &promlog.AllowedLevel{}}
-	if err := promlogConfig.Level.Set("info"); err != nil {
+	promslogConfig := &promslog.Config{Level: &promslog.AllowedLevel{}}
+	if err := promslogConfig.Level.Set("info"); err != nil {
 		fmt.Println("Error setting log level:", err)
 		return
 	}
-	logger := promlog.New(promlogConfig)
+	logger := promslog.New(promslogConfig)
 
 	mode := os.Getenv("RUN_MODE")
 
@@ -275,7 +273,7 @@ func main() {
 		c := cron.New()
 		cronSchedule := os.Getenv("CRON_SCHEDULE")
 		if cronSchedule == "" {
-			cronSchedule = "@every 5m"
+			cronSchedule = "@every 30s"
 		}
 		_, err := c.AddFunc(cronSchedule, func() {
 			HandleRequest(logger)
@@ -289,6 +287,6 @@ func main() {
 		// Keep the program running
 		select {}
 	} else {
-		fmt.Println("Invalid RUN_MODE. Set RUN_MODE to either 'LAMBDA' or 'CRON'")
+		logger.Error("Invalid RUN_MODE. Set RUN_MODE to either 'LAMBDA' or 'CRON'")
 	}
 }

@@ -7,13 +7,13 @@ import (
 
 	"github.com/prometheus-community/postgres_exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
+	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/promslog/flag"
 )
 
 func RegisterPostgresCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) *collector.PostgresCollector {
 	logger.Info("Registering Postgres collector")
-	promlogConfig := &promlog.Config{}
+	promlogConfig := &promslog.Config{}
 	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	// kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
