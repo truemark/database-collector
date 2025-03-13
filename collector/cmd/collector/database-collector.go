@@ -268,7 +268,7 @@ func main() {
 		c := cron.New()
 		cronSchedule := os.Getenv("CRON_SCHEDULE")
 		if cronSchedule == "" {
-			cronSchedule = "@every 30s"
+			cronSchedule = "@every 5m"
 		}
 		_, err := c.AddFunc(cronSchedule, func() {
 			HandleRequest(logger)

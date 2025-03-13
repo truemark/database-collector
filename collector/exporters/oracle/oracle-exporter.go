@@ -20,7 +20,7 @@ func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]
 		MaxIdleConns:       1,
 		QueryTimeout:       10,
 		DefaultMetricsFile: "",
-		CustomMetrics:      "/Volumes/code/truemark/database-collector/collector/exporters/oracle/custom-metrics.toml",
+		CustomMetrics:      "oracle-custom-metrics.toml",
 	}
 
 	oracleExporter, err := collector.NewExporter(logger, config)
