@@ -2,28 +2,30 @@ package oracle
 
 import (
 	"fmt"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/iamseth/oracledb_exporter/collector"
+	_ "github.com/godror/godror"
+	"github.com/oracle/oracle-db-appdev-monitoring/collector"
 	"github.com/prometheus/client_golang/prometheus"
 	_ "github.com/sijms/go-ora/v2"
+	"log/slog"
 )
 
-func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]interface{}, logger log.Logger) *collector.Exporter {
-	level.Info(logger).Log("msg", "Registering OracleDB collector")
-	dsn := fmt.Sprintf("oracle://%s:%s@%s:%v/%s", secret["username"], secret["password"], secret["host"], secret["port"], secret["dbname"])
+func RegisterOracleDBCollector(registry *prometheus.Registry, secret map[string]interface{}, logger *slog.Logger) *collector.Exporter {
+	logger.Info("Registering OracleDB collector")
+	dsn := fmt.Sprintf("%s:%v/%s", secret["host"], secret["port"], secret["dbname"])
 	config := &collector.Config{
-		DSN:                dsn,
+		User:               secret["username"].(string),
+		Password:           secret["password"].(string),
+		ConnectString:      dsn,
 		MaxOpenConns:       1,
 		MaxIdleConns:       1,
 		QueryTimeout:       10,
 		DefaultMetricsFile: "",
-		CustomMetrics:      "",
+		CustomMetrics:      "oracle-custom-metrics.toml",
 	}
 
 	oracleExporter, err := collector.NewExporter(logger, config)
 	if err != nil {
-		level.Error(logger).Log("unable to connect to DB", err)
+		logger.Error("unable to connect to DB", "error", err)
 	}
 
 	registry.MustRegister(oracleExporter)
