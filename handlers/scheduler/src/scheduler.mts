@@ -14,33 +14,51 @@ Also supports daily scheduled trigger (currently no-op placeholder).
 import { SFNClient, StartExecutionCommand, ListExecutionsCommand, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
+// Reusable AWS SDK clients (kept outside the handler for connection reuse across invocations)
 const sfn = new SFNClient({});
 const secrets = new SecretsManagerClient({});
 
+/**
+ * Convert a Secrets Manager ARN into a short, deterministic secret name suitable for Step Functions execution names.
+ * Example input: arn:aws:secretsmanager:region:acct:secret:secretName-xxxx
+ */
 function arnToSecretName(arn: string): string {
   // arn:aws:secretsmanager:region:acct:secret:secretName-xxxx
   try {
     const parts = arn.split(':');
     const last = parts[parts.length - 1] || '';
     const afterSecret = last.split('secret:')[1] ?? last; // handle if includes 'secret:'
-    // strip random suffix after '-' if present to keep it shorter and deterministic enough
-    const base = afterSecret.split('-')[0];
-    return base || afterSecret || arn;
+    // Use the full secret name (including hyphens) to avoid accidental partial matches
+    return afterSecret || arn;
   } catch {
     return arn;
   }
 }
 
+/**
+ * Sanitize a string for use as a Step Functions execution name.
+ * Allowed charset: [.-_A-Za-z0-9], max length: 80 chars.
+ */
 function sanitizeExecName(name: string): string {
   // Allowed: [.-_A-Za-z0-9], max 80 chars
   const cleaned = name.replace(/[^A-Za-z0-9._-]/g, '-');
   return cleaned.substring(0, 80);
 }
 
+/**
+ * Extract an identifier from a tag key by removing the configured prefix.
+ * If the remainder is empty, returns 'default'.
+ */
 function identifierFromTagKey(key: string, prefix: string): string {
   return key.startsWith(prefix) ? key.substring(prefix.length) || 'default' : key;
 }
 
+/**
+ * Resolve a secret's value as a string.
+ * - Returns SecretString directly when present
+ * - Encodes SecretBinary as base64
+ * - Returns undefined if access fails or no value is present
+ */
 async function getSecretValueString(secretArn: string): Promise<string | undefined> {
   try {
     const res = await secrets.send(new GetSecretValueCommand({ SecretId: secretArn }));
@@ -52,6 +70,9 @@ async function getSecretValueString(secretArn: string): Promise<string | undefin
   return undefined;
 }
 
+/**
+ * List names of currently RUNNING executions for a given state machine.
+ */
 async function listRunningExecNames(stateMachineArn: string): Promise<Set<string>> {
   const names = new Set<string>();
   let nextToken: string | undefined = undefined;
@@ -69,6 +90,22 @@ async function listRunningExecNames(stateMachineArn: string): Promise<Set<string
   return names;
 }
 
+/**
+ * Create a short random suffix for execution names to ensure uniqueness.
+ * Uses base36 timestamp and a 6-char random string.
+ */
+function randomSuffix(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `${ts}-${rand}`;
+}
+
+/**
+ * Lambda handler that:
+ * - On Secrets Manager TagResource: starts a Step Functions execution per matching tag key
+ * - On Secrets Manager UntagResource: stops matching RUNNING execution(s)
+ * - On scheduled cron event: logs a heartbeat (placeholder)
+ */
 export async function handler(event: any): Promise<void> {
   console.log('Received event:', JSON.stringify(event, null, 2));
   const tagPrefix  = process.env.TAG_PREFIX || 'database-collector:';
@@ -82,16 +119,19 @@ export async function handler(event: any): Promise<void> {
   if (
     event &&
     event['detail-type'] === 'AWS API Call via CloudTrail' &&
-    (event.detail?.eventName === 'TagResource' || event.detail?.eventName === 'UntagResource')
+    (event.detail?.eventName === 'TagResource' || event.detail?.eventName === 'UntagResource' || event.detail?.eventName === 'DeleteSecret' || event.detail?.eventName === 'CreateSecret')
   ) {
-    const secretArn: string | undefined = event.detail?.requestParameters?.secretId;
+    let secretId: string | undefined = event.detail?.requestParameters?.secretId;
+    if (!secretId && event.detail?.eventName === 'CreateSecret') {
+      secretId = event.detail?.responseElements?.ARN || event.detail?.requestParameters?.name;
+    }
 
-    if (!secretArn) {
-      console.log('No resourceArn found in event; ignoring.');
+    if (!secretId) {
+      console.log('No secret identifier found in event; ignoring.');
       return;
     }
 
-    const secretName = arnToSecretName(secretArn);
+    const secretName = arnToSecretName(secretId);
 
     if (event.detail?.eventName === 'TagResource') {
       const tags: Array<{ key: string; value?: string }> = event.detail?.requestParameters?.tags || [];
@@ -101,22 +141,16 @@ export async function handler(event: any): Promise<void> {
         return;
       }
 
-      // cache running names to avoid duplicate starts
-      const runningNames = await listRunningExecNames(stateMachineArn);
-
-      const secretValue = await getSecretValueString(secretArn);
+      const secretValue = await getSecretValueString(secretId);
 
       for (const t of matching) {
         const identifier = identifierFromTagKey(t.key, tagPrefix);
-        const execName = sanitizeExecName(`${secretName}--${identifier}`);
-        if (runningNames.has(execName)) {
-          console.log(`Execution already running for ${execName}; skipping start.`);
-          continue;
-        }
+        // const baseName = `${secretName}--${identifier}`;
+        const execName = sanitizeExecName(`${secretName}--${randomSuffix()}`);
         const input = {
           name: identifier || secretName,
           continue: true,
-          secretArn,
+          secretArn: secretId,
           secretValue,
           tagKey: t.key,
           tagValue: t.value,
@@ -132,6 +166,38 @@ export async function handler(event: any): Promise<void> {
           console.warn(`Failed to start execution ${execName}:`, e);
         }
       }
+    } else if (event.detail?.eventName === 'CreateSecret') {
+      const tags: Array<{ key: string; value?: string }> = event.detail?.requestParameters?.tags || [];
+      const matching = tags.filter(t => t?.key?.startsWith(tagPrefix));
+      if (matching.length === 0) {
+        console.log('CreateSecret event without matching prefix; ignoring.');
+        return;
+      }
+
+      const secretValue = await getSecretValueString(secretId);
+
+      for (const t of matching) {
+        const identifier = identifierFromTagKey(t.key, tagPrefix);
+        const execName = sanitizeExecName(`${secretName}--${randomSuffix()}`);
+        const input = {
+          name: identifier || secretName,
+          continue: true,
+          secretArn: secretId,
+          secretValue,
+          tagKey: t.key,
+          tagValue: t.value,
+        };
+        try {
+          await sfn.send(new StartExecutionCommand({
+            stateMachineArn,
+            name: execName,
+            input: JSON.stringify(input),
+          }));
+          console.log(`Started execution ${execName} (CreateSecret)`);
+        } catch (e) {
+          console.warn(`Failed to start execution ${execName} on CreateSecret:`, e);
+        }
+      }
     } else if (event.detail?.eventName === 'UntagResource') {
       const tagKeys: string[] = event.detail?.requestParameters?.tagKeys || [];
       const matchingKeys = tagKeys.filter((k: string) => typeof k === 'string' && k.startsWith(tagPrefix));
@@ -139,35 +205,47 @@ export async function handler(event: any): Promise<void> {
         console.log('UntagResource event without matching prefix; ignoring.');
         return;
       }
-      const runningNames = await listRunningExecNames(stateMachineArn);
-      for (const key of matchingKeys) {
-        const identifier = identifierFromTagKey(key, tagPrefix);
-        const execName = sanitizeExecName(`${secretName}--${identifier}`);
-        if (!runningNames.has(execName)) {
-          console.log(`No running execution found for ${execName}; nothing to stop.`);
-          continue;
-        }
-        // We must find the executionArn to stop; list again and find the one with this name.
-        // To avoid an extra full list per key, we can list once here.
-        let nextToken: string | undefined = undefined;
-        let stopped = false;
-        do {
-          const page = await sfn.send(new ListExecutionsCommand({ stateMachineArn, statusFilter: 'RUNNING', nextToken }));
-          for (const exec of page.executions ?? []) {
-            if (exec.name === execName && exec.executionArn) {
-              try {
-                await sfn.send(new StopExecutionCommand({ executionArn: exec.executionArn, cause: 'Untagged' }));
-                console.log(`Stopped execution ${execName}`);
-                stopped = true;
-                break;
-              } catch (e) {
-                console.warn(`Failed to stop execution ${execName}:`, e);
-              }
+      // Stop any RUNNING executions whose name contains the sanitized secret name
+      const secretNameFragment = sanitizeExecName(arnToSecretName(secretId));
+      let nextToken: string | undefined = undefined;
+      let stoppedCount = 0;
+      do {
+        const page = await sfn.send(new ListExecutionsCommand({ stateMachineArn, statusFilter: 'RUNNING', nextToken }));
+        for (const exec of page.executions ?? []) {
+          if (exec.name && exec.name.includes(secretNameFragment) && exec.executionArn) {
+            try {
+              await sfn.send(new StopExecutionCommand({ executionArn: exec.executionArn, cause: 'Untagged' }));
+              console.log(`Stopped execution ${exec.name}`);
+              stoppedCount++;
+            } catch (e) {
+              console.warn(`Failed to stop execution ${exec.name}:`, e);
             }
           }
-          nextToken = page.nextToken;
-        } while (!stopped && nextToken);
-      }
+        }
+        nextToken = page.nextToken;
+      } while (nextToken);
+      console.log(`Total executions stopped for secret ${secretNameFragment}: ${stoppedCount}`);
+    } else if (event.detail?.eventName === 'DeleteSecret') {
+      // Stop all RUNNING executions whose name contains the sanitized secret name for deleted secret
+      const secretNameFragment = sanitizeExecName(arnToSecretName(secretId));
+      let nextToken: string | undefined = undefined;
+      let stoppedCount = 0;
+      do {
+        const page = await sfn.send(new ListExecutionsCommand({ stateMachineArn, statusFilter: 'RUNNING', nextToken }));
+        for (const exec of page.executions ?? []) {
+          if (exec.name && exec.name.includes(secretNameFragment) && exec.executionArn) {
+            try {
+              await sfn.send(new StopExecutionCommand({ executionArn: exec.executionArn, cause: 'SecretDeleted' }));
+              console.log(`Stopped execution ${exec.name}`);
+              stoppedCount++;
+            } catch (e) {
+              console.warn(`Failed to stop execution ${exec.name}:`, e);
+            }
+          }
+        }
+        nextToken = page.nextToken;
+      } while (nextToken);
+      console.log(`Total executions stopped for deleted secret ${secretNameFragment}: ${stoppedCount}`);
     }
   } else if (event && event.source === 'aws.events') {
     console.log('Triggered by scheduled (cron) event');

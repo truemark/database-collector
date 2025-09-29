@@ -1,3 +1,7 @@
+// High-level construct that wires together:
+// - A scheduler Lambda that reacts to Secrets Manager tag/untag events and cron
+// - A Step Functions state machine that periodically invokes a collector Lambda
+// - A collector Lambda (Java) that performs the actual collection task
 import {Construct} from 'constructs';
 import {Duration} from 'aws-cdk-lib';
 import {IEventBus} from 'aws-cdk-lib/aws-events';
@@ -12,12 +16,14 @@ import {
   StateMachineType,
   Wait,
   WaitTime,
-  Succeed, TaskInput,
+  Succeed, TaskInput, DefinitionBody,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import {LambdaInvoke} from 'aws-cdk-lib/aws-stepfunctions-tasks';
 
 export interface DatabaseCollectorProps {
+  /** Optional tag prefix for controlling which secrets trigger collection. Defaults to 'database-collector:' */
   readonly tagPrefix?: string;
+  /** Optional custom EventBus (not currently consumed). Reserved for future use. */
   readonly eventBus?: IEventBus;
 }
 
@@ -27,10 +33,12 @@ export class DatabaseCollector extends Construct {
 
     const tagPrefix = props.tagPrefix ?? 'database-collector:';
 
+    // Lambda that schedules/controls executions based on Secrets Manager tag events.
     const schedulerFunction = new SchedulerFunction(this, 'SchedulerFunction', {
       tagPrefix,
     });
 
+    // Java collector Lambda that does the actual work.
     const collectorFunction = new CollectorFunction(this, 'CollectorFunction', {});
 
     // Optional step to enrich input with execution context (kept for debugging/traceability)
@@ -72,7 +80,7 @@ export class DatabaseCollector extends Construct {
       .next(shouldContinue);
 
     const stateMachine = new StateMachine(this, 'CollectorStateMachine', {
-      definition,
+      definitionBody: DefinitionBody.fromChainable(definition),
       stateMachineType: StateMachineType.STANDARD,
     });
 
