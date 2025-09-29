@@ -4,7 +4,7 @@ import {Architecture, Runtime} from "aws-cdk-lib/aws-lambda";
 import {Duration, RemovalPolicy} from "aws-cdk-lib";
 import * as path from "path";
 import {PolicyStatement} from "aws-cdk-lib/aws-iam";
-import {Rule} from "aws-cdk-lib/aws-events";
+import {Rule, Schedule} from "aws-cdk-lib/aws-events";
 import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
 import {LogGroup, RetentionDays} from "aws-cdk-lib/aws-logs";
 import {log} from "aws-cdk-lib/custom-resources/lib/provider-framework/runtime/util";
@@ -49,6 +49,16 @@ export class SchedulerFunction extends NodejsFunction {
       }
     });
     secretTagEventRules.addTarget(new LambdaFunction(this));
+    const dailyRule = new Rule(this, 'DailySchedulerRule', {
+      schedule: Schedule.cron({
+        minute: '50',
+        hour: '23',
+        month: '*',
+        weekDay: '*',
+        year: '*',
+      }),
+    });
+    dailyRule.addTarget(new LambdaFunction(this));
     this.addToRolePolicy(
       new PolicyStatement({
         actions: [

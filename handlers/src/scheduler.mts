@@ -8,24 +8,32 @@ Also triggers daily to schedule next executions, because exections are going to 
 Wait states in the step function to wait until the time is met
 */
 
-
-export async function handler(event: unknown): Promise<void> {
+export async function handler(event: any): Promise<void> {
   console.log('Received event:', JSON.stringify(event, null, 2));
 
-  // Example: Distinguish between tag/untag and cron events
-  // Adjust the logic as needed based on your actual event structure
+  const tagPrefix = process.env.TAG_PREFIX;
+
   if (
-    typeof event === 'object' &&
-    event !== null &&
-    'detail-type' in event &&
-    (event['detail-type'] === 'AWS API Call via CloudTrail')
+    event &&
+    event['detail-type'] === 'AWS API Call via CloudTrail' &&
+    (event.detail?.eventName === 'TagResource' || event.detail?.eventName === 'UntagResource')
   ) {
-    console.log('Triggered by tag/untag event for secrets');
+    let tagKeys: string[] = [];
+    if (event.detail?.eventName === 'TagResource') {
+      tagKeys = event.detail?.requestParameters?.tags?.map((tag: any) => tag.key) || [];
+    } else if (event.detail?.eventName === 'UntagResource') {
+      tagKeys = event.detail?.requestParameters?.tagKeys || [];
+    }
+    const hasPrefixedTag = tagKeys.some((key: string) => key.startsWith(tagPrefix));
+    if (hasPrefixedTag) {
+      console.log(`"${event.detail?.eventName}" event with prefix "${tagPrefix}" detected.`);
+      // Add your logic here
+    } else {
+      console.log(`"${event.detail?.eventName}" event does not match prefix.`);
+    }
   } else if (
-    typeof event === 'object' &&
-    event !== null &&
-    'source' in event &&
-    event['source'] === 'aws.events'
+    event &&
+    event.source === 'aws.events'
   ) {
     console.log('Triggered by scheduled (cron) event');
   } else {
