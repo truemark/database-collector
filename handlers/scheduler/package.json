@@ -6,13 +6,16 @@
     "prebuild": "prettier --check . && eslint .",
     "build": "tsc",
     "watch": "tsc -w",
-    "clean": "find ./src -type f \\( -name \"*.mjs\" -o -name \"*.d.mts\" -o -name \"*.map\" \\) -exec rm -f {} \\;",
+    "clean": "find ./src -type f \\( -name \\\"*.mjs\\\" -o -name \\\"*.d.mts\\\" -o -name \\\"*.map\\\" \\) -exec rm -f {} \\;",
     "fmt": "prettier --write ."
   },
   "devDependencies": {
     "@types/node": "22.5.4"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.654.0",
+    "@aws-sdk/client-sfn": "^3.654.0"
+  },
   "volta": {
     "node": "22.20.0"
   }
