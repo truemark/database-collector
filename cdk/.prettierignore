@@ -1,0 +1,6 @@
+pnpm-lock.yaml
+cdk.out
+node_modules
+*.js
+*.d.*
+*.map
