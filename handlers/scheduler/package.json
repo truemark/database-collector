@@ -9,7 +9,9 @@
     "clean": "find ./src -type f \\( -name \"*.mjs\" -o -name \"*.d.mts\" -o -name \"*.map\" \\) -exec rm -f {} \\;",
     "fmt": "prettier --write ."
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/node": "22.5.4"
+  },
   "dependencies": {},
   "volta": {
     "node": "22.20.0"

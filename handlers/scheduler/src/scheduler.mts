@@ -10,8 +10,7 @@ Wait states in the step function to wait until the time is met
 
 export async function handler(event: any): Promise<void> {
   console.log('Received event:', JSON.stringify(event, null, 2));
-
-  const tagPrefix = process.env.TAG_PREFIX;
+  const tagPrefix  = process.env.TAG_PREFIX || "database-collector:";
 
   if (
     event &&
@@ -24,6 +23,7 @@ export async function handler(event: any): Promise<void> {
     } else if (event.detail?.eventName === 'UntagResource') {
       tagKeys = event.detail?.requestParameters?.tagKeys || [];
     }
+
     const hasPrefixedTag = tagKeys.some((key: string) => key.startsWith(tagPrefix));
     if (hasPrefixedTag) {
       console.log(`"${event.detail?.eventName}" event with prefix "${tagPrefix}" detected.`);
