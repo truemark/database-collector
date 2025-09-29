@@ -27,6 +27,7 @@ export class SchedulerFunction extends NodejsFunction {
         '..',
         '..',
         'handlers',
+        'scheduler',
         'src',
         'scheduler.mts',
       ),
