@@ -83,6 +83,7 @@ export class SchedulerFunction extends NodejsFunction {
           'states:StopExecution',
           'states:ListExecutions',
           'secretsmanager:GetSecretValue',
+          'secretsmanager:DescribeSecret',
         ],
         resources: ['*'],
       }),

@@ -7,8 +7,8 @@ Event-driven AWS solution that periodically runs a collector Lambda for Secrets 
 Components:
 - Scheduler Lambda (TypeScript):
   - Listens to Secrets Manager TagResource/UntagResource events via EventBridge (CloudTrail).
-  - Starts a Step Functions execution for each matching tag on a secret.
-  - Stops the matching execution(s) when the tag is removed.
+  - Starts a Step Functions execution for each matching tag on a secret when the tag value is truthy (e.g., true/1/yes).
+  - Stops the matching execution(s) when the tag is removed or set to a false-y value.
   - Also receives a daily scheduled trigger (currently a no-op placeholder).
 - Step Functions State Machine:
   - Wait 5 minutes → Invoke Collector Lambda → Check "continue" flag → Loop or Finish.
@@ -16,14 +16,14 @@ Components:
   - Example handler that logs input and returns a greeting. Replace with real collection logic.
 
 Tagging model:
-- Use a tag key with the configured prefix to start a loop per key. e.g. `database-collector:orders`
-- Execution name format: `<secretName>--<identifier>`
+- Use a tag key with the configured prefix to start/stop a loop per key. e.g. `database-collector:orders`
+- Execution name format: `<secretName>--<identifier>--<random>` to ensure uniqueness while allowing targeted stops.
 - The identifier is the tag key suffix after the prefix; if empty, `default` is used.
-- Removing the tag key stops the corresponding loop.
+- Removing the tag key stops the corresponding loop; setting the tag value to a false-y value (false/0/no) also stops it.
 
 ## Architecture
 
-- EventBridge rule (source: `aws.secretsmanager`, detail type: `AWS API Call via CloudTrail`, event names: `TagResource`, `UntagResource`) targets the Scheduler Lambda.
+- EventBridge rule (source: `aws.secretsmanager`, detail type: `AWS API Call via CloudTrail`, event names: `CreateSecret`, `TagResource`, `UntagResource`, `DeleteSecret`) targets the Scheduler Lambda.
 - Scheduler starts/stops Step Functions executions for the state machine.
 - A daily EventBridge cron rule also triggers the Scheduler Lambda (placeholder).
 - The state machine calls the Collector Lambda every 5 minutes while `continue = true`.
@@ -90,7 +90,7 @@ Multiple loops per secret:
 
 - The Scheduler Lambda is granted the following permissions:
   - `states:StartExecution`, `states:StopExecution`, `states:ListExecutions` on the state machine
-  - `secretsmanager:GetSecretValue` for reading secret contents
+  - `secretsmanager:GetSecretValue` and `secretsmanager:DescribeSecret` for reading secret contents and tags
 - EventBridge rules invoke the Scheduler Lambda on relevant events and on a daily schedule.
 
 ## Troubleshooting
