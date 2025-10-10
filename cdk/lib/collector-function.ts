@@ -9,6 +9,7 @@ import {
 import * as path from 'path';
 import * as fs from 'fs';
 import {execSync} from 'child_process';
+import * as console from 'node:console';
 
 export interface CollectorFunctionProps {
   readonly memorySize?: number;
@@ -60,6 +61,7 @@ export class CollectorFunction extends LambdaFunction {
                 fs.copyFileSync(jarPath, outJar);
                 return true;
               } catch (err) {
+                console.log(err);
                 // Returning false lets CDK fall back to Docker bundling
                 return false;
               }
