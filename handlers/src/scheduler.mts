@@ -431,8 +431,8 @@ export async function handler(event: any): Promise<void> {
       }
     } else if (event.detail?.eventName === 'UntagResource') {
       const tagKeys: string[] = event.detail?.requestParameters?.tagKeys || [];
-      const matchingKeys = tagKeys.filter(
-        (k: string) => k.startsWith(tagPrefix),
+      const matchingKeys = tagKeys.filter((k: string) =>
+        k.startsWith(tagPrefix),
       );
       if (matchingKeys.length === 0) {
         console.log('UntagResource event without matching prefix; ignoring.');
