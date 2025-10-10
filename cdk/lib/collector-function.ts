@@ -1,14 +1,19 @@
 import {Construct} from 'constructs';
 import {Duration} from 'aws-cdk-lib';
-import {Architecture, Code, Function as LambdaFunction, Runtime} from 'aws-cdk-lib/aws-lambda';
+import {
+  Architecture,
+  Code,
+  Function as LambdaFunction,
+  Runtime,
+} from 'aws-cdk-lib/aws-lambda';
 import * as path from 'path';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import {execSync} from 'child_process';
 
 export interface CollectorFunctionProps {
   readonly memorySize?: number;
   readonly timeout?: Duration;
-  readonly environment?: { [key: string]: string };
+  readonly environment?: {[key: string]: string};
   readonly architecture?: Architecture;
 }
 
@@ -21,9 +26,13 @@ export interface CollectorFunctionProps {
  * Handler: com.truemark.collector.HelloWorldHandler::handleRequest
  */
 export class CollectorFunction extends LambdaFunction {
-  constructor(scope: Construct, id: string, props: CollectorFunctionProps = {}) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: CollectorFunctionProps = {},
+  ) {
     const projectRoot = path.join(__dirname, '..', '..');
-    const collectorDir = path.join(projectRoot, 'handlers', 'collector');
+    const collectorDir = path.join(projectRoot, 'collector');
 
     super(scope, id, {
       runtime: Runtime.JAVA_21,
@@ -42,7 +51,11 @@ export class CollectorFunction extends LambdaFunction {
                   cwd: collectorDir,
                   stdio: 'inherit',
                 });
-                const jarPath = path.join(collectorDir, 'target', 'collector.jar');
+                const jarPath = path.join(
+                  collectorDir,
+                  'target',
+                  'collector.jar',
+                );
                 const outJar = path.join(outputDir, 'collector.jar');
                 fs.copyFileSync(jarPath, outJar);
                 return true;
@@ -60,7 +73,7 @@ export class CollectorFunction extends LambdaFunction {
             [
               'set -euo pipefail',
               'mvn -q -e -U -B -DskipTests package',
-              'cp target/collector.jar /asset-output/collector.jar'
+              'cp target/collector.jar /asset-output/collector.jar',
             ].join(' && '),
           ],
           workingDirectory: '/asset-input',

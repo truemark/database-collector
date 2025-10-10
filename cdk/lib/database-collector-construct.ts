@@ -16,7 +16,9 @@ import {
   StateMachineType,
   Wait,
   WaitTime,
-  Succeed, TaskInput, DefinitionBody,
+  Succeed,
+  TaskInput,
+  DefinitionBody,
 } from 'aws-cdk-lib/aws-stepfunctions';
 import {LambdaInvoke} from 'aws-cdk-lib/aws-stepfunctions-tasks';
 
@@ -39,7 +41,11 @@ export class DatabaseCollector extends Construct {
     });
 
     // Java collector Lambda that does the actual work.
-    const collectorFunction = new CollectorFunction(this, 'CollectorFunction', {});
+    const collectorFunction = new CollectorFunction(
+      this,
+      'CollectorFunction',
+      {},
+    );
 
     // Optional step to enrich input with execution context (kept for debugging/traceability)
     const addExecutionContext = new Pass(this, 'AddExecutionContext', {
@@ -85,7 +91,10 @@ export class DatabaseCollector extends Construct {
     });
 
     // Provide the state machine ARN to the scheduler and grant permissions to start executions
-    schedulerFunction.addEnvironment('STATE_MACHINE_ARN', stateMachine.stateMachineArn);
+    schedulerFunction.addEnvironment(
+      'STATE_MACHINE_ARN',
+      stateMachine.stateMachineArn,
+    );
     stateMachine.grantStartExecution(schedulerFunction);
   }
 }

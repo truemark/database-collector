@@ -2,15 +2,15 @@
 // reacting to Secrets Manager tag/untag events and a daily cron event.
 // It also grants the Lambda minimal permissions to interact with
 // Step Functions and Secrets Manager.
-import {NodejsFunction} from "aws-cdk-lib/aws-lambda-nodejs";
-import {Construct} from "constructs";
-import {Architecture, Runtime} from "aws-cdk-lib/aws-lambda";
-import {Duration, RemovalPolicy} from "aws-cdk-lib";
-import * as path from "path";
-import {PolicyStatement} from "aws-cdk-lib/aws-iam";
-import {Rule, Schedule} from "aws-cdk-lib/aws-events";
-import {LambdaFunction} from "aws-cdk-lib/aws-events-targets";
-import {LogGroup, RetentionDays} from "aws-cdk-lib/aws-logs";
+import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
+import {Construct} from 'constructs';
+import {Architecture, Runtime} from 'aws-cdk-lib/aws-lambda';
+import {Duration, RemovalPolicy} from 'aws-cdk-lib';
+import * as path from 'path';
+import {PolicyStatement} from 'aws-cdk-lib/aws-iam';
+import {Rule, Schedule} from 'aws-cdk-lib/aws-events';
+import {LambdaFunction} from 'aws-cdk-lib/aws-events-targets';
+import {LogGroup, RetentionDays} from 'aws-cdk-lib/aws-logs';
 
 /**
  * Props for SchedulerFunction
@@ -37,7 +37,6 @@ export class SchedulerFunction extends NodejsFunction {
         '..',
         '..',
         'handlers',
-        'scheduler',
         'src',
         'scheduler.mts',
       ),
@@ -57,9 +56,14 @@ export class SchedulerFunction extends NodejsFunction {
         detailType: ['AWS API Call via CloudTrail'],
         detail: {
           eventSource: ['secretsmanager.amazonaws.com'],
-          eventName: ['TagResource', 'UntagResource', 'DeleteSecret', 'CreateSecret'],
+          eventName: [
+            'TagResource',
+            'UntagResource',
+            'DeleteSecret',
+            'CreateSecret',
+          ],
         },
-      }
+      },
     });
     secretTagEventRules.addTarget(new LambdaFunction(this));
 
