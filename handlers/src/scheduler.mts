@@ -120,7 +120,6 @@ async function scanEnabledAndStart(
   tagPrefix: string,
 ): Promise<void> {
   const enabledTagKey = `${tagPrefix}enabled`;
-  const running = await listRunningExecNames(stateMachineArn);
   let nextToken: string | undefined = undefined;
   let examined = 0;
   let started = 0;
@@ -146,8 +145,36 @@ async function scanEnabledAndStart(
       const secretName = arnToSecretName(secretId);
       const identifier = 'enabled';
       const base = sanitizeExecName(`${secretName}--${identifier}--`);
-      const alreadyRunning = Array.from(running).some((n) => n.includes(base));
-      if (alreadyRunning) continue;
+
+      // Stop any RUNNING executions for this secret/identifier before starting a new one
+      let stopNextToken: string | undefined = undefined;
+      let stopped = 0;
+      do {
+        const page: ListExecutionsCommandOutput = await sfn.send(
+          new ListExecutionsCommand({
+            stateMachineArn,
+            statusFilter: 'RUNNING',
+            nextToken: stopNextToken,
+          }),
+        );
+        for (const exec of page.executions ?? []) {
+          if (exec.name && exec.name.includes(base) && exec.executionArn) {
+            try {
+              await sfn.send(
+                new StopExecutionCommand({
+                  executionArn: exec.executionArn,
+                  cause: 'DailyRescan',
+                }),
+              );
+              console.log(`Stopped execution ${exec.name} (daily rescan)`);
+              stopped++;
+            } catch (e) {
+              console.warn(`Failed to stop execution ${exec.name} (daily):`, e);
+            }
+          }
+        }
+        stopNextToken = page.nextToken;
+      } while (stopNextToken);
 
       const secretValue = await getSecretValueString(secretId);
       const execName = sanitizeExecName(`${base}${randomSuffix()}`);
