@@ -16,6 +16,7 @@ import {
   StartExecutionCommand,
   ListExecutionsCommand,
   StopExecutionCommand,
+  ListExecutionsCommandOutput,
 } from '@aws-sdk/client-sfn';
 import {
   SecretsManagerClient,
@@ -95,7 +96,7 @@ async function listRunningExecNames(
   const names = new Set<string>();
   let nextToken: string | undefined = undefined;
   do {
-    const out = await sfn.send(
+    const out: ListExecutionsCommandOutput = await sfn.send(
       new ListExecutionsCommand({
         stateMachineArn,
         statusFilter: 'RUNNING',
@@ -233,7 +234,7 @@ export async function handler(event: any): Promise<void> {
           let nextToken: string | undefined = undefined;
           let stopped = 0;
           do {
-            const page = await sfn.send(
+            const page: ListExecutionsCommandOutput = await sfn.send(
               new ListExecutionsCommand({
                 stateMachineArn,
                 statusFilter: 'RUNNING',
@@ -289,7 +290,7 @@ export async function handler(event: any): Promise<void> {
             // If disabled but something is running for this identifier, stop it.
             let nextToken: string | undefined = undefined;
             do {
-              const page = await sfn.send(
+              const page: ListExecutionsCommandOutput = await sfn.send(
                 new ListExecutionsCommand({
                   stateMachineArn,
                   statusFilter: 'RUNNING',
@@ -372,7 +373,7 @@ export async function handler(event: any): Promise<void> {
       let nextToken: string | undefined = undefined;
       let stoppedCount = 0;
       do {
-        const page = await sfn.send(
+        const page: ListExecutionsCommandOutput = await sfn.send(
           new ListExecutionsCommand({
             stateMachineArn,
             statusFilter: 'RUNNING',
@@ -410,7 +411,7 @@ export async function handler(event: any): Promise<void> {
       let nextToken: string | undefined = undefined;
       let stoppedCount = 0;
       do {
-        const page = await sfn.send(
+        const page: ListExecutionsCommandOutput = await sfn.send(
           new ListExecutionsCommand({
             stateMachineArn,
             statusFilter: 'RUNNING',

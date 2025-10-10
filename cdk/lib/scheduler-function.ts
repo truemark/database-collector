@@ -63,7 +63,7 @@ export class SchedulerFunction extends NodejsFunction {
     });
     secretTagEventRules.addTarget(new LambdaFunction(this));
 
-    // Daily scheduled trigger (currently no-op placeholder in the handler).
+    // Daily scheduled trigger (currently no-op placeholder in the handler). Scan all secrets once a day.
     const dailyRule = new Rule(this, 'DailySchedulerRule', {
       schedule: Schedule.cron({
         minute: '50',
