@@ -22,6 +22,7 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
   DescribeSecretCommand,
+  ListSecretsCommand,
 } from '@aws-sdk/client-secrets-manager';
 
 // Reusable AWS SDK clients (kept outside the handler for connection reuse across invocations)
@@ -109,6 +110,76 @@ async function listRunningExecNames(
     nextToken = out.nextToken;
   } while (nextToken);
   return names;
+}
+
+/**
+ * Scan all Secrets Manager secrets with the specific enabled tag key and start executions for enabled ones.
+ */
+async function scanEnabledAndStart(
+  stateMachineArn: string,
+  tagPrefix: string,
+): Promise<void> {
+  const enabledTagKey = `${tagPrefix}enabled`;
+  const running = await listRunningExecNames(stateMachineArn);
+  let nextToken: string | undefined = undefined;
+  let examined = 0;
+  let started = 0;
+
+  do {
+    // @ts-ignore
+    const out = await secrets.send(
+      new ListSecretsCommand({
+        Filters: [{Key: 'tag-key', Values: [enabledTagKey]}],
+        NextToken: nextToken,
+      }),
+    );
+
+    for (const s of out.SecretList ?? []) {
+      const secretId = s.ARN || s.Name;
+      if (!secretId) continue;
+      examined++;
+      // Describe to get tags/values reliably
+      const tags = await listTags(secretId);
+      const tag = tags.find((t) => t.key === enabledTagKey);
+      const enabled = isTruthy(tag?.value);
+      if (!enabled) continue;
+      const secretName = arnToSecretName(secretId);
+      const identifier = 'enabled';
+      const base = sanitizeExecName(`${secretName}--${identifier}--`);
+      const alreadyRunning = Array.from(running).some((n) => n.includes(base));
+      if (alreadyRunning) continue;
+
+      const secretValue = await getSecretValueString(secretId);
+      const execName = sanitizeExecName(`${base}${randomSuffix()}`);
+      const input = {
+        name: identifier || secretName,
+        continue: true,
+        secretArn: secretId,
+        secretValue,
+        tagKey: enabledTagKey,
+        tagValue: tag?.value,
+      };
+      try {
+        await sfn.send(
+          new StartExecutionCommand({
+            stateMachineArn,
+            name: execName,
+            input: JSON.stringify(input),
+          }),
+        );
+        started++;
+        console.log(`Started execution ${execName} (daily)`);
+      } catch (e) {
+        console.warn(`Failed to start execution ${execName} (daily):`, e);
+      }
+    }
+
+    nextToken = out.NextToken;
+  } while (nextToken);
+
+  console.log(
+    `Daily scan examined ${examined} secrets with key ${enabledTagKey}; started ${started} executions.`,
+  );
 }
 
 /**
@@ -361,7 +432,7 @@ export async function handler(event: any): Promise<void> {
     } else if (event.detail?.eventName === 'UntagResource') {
       const tagKeys: string[] = event.detail?.requestParameters?.tagKeys || [];
       const matchingKeys = tagKeys.filter(
-        (k: string) => typeof k === 'string' && k.startsWith(tagPrefix),
+        (k: string) => k.startsWith(tagPrefix),
       );
       if (matchingKeys.length === 0) {
         console.log('UntagResource event without matching prefix; ignoring.');
@@ -446,6 +517,7 @@ export async function handler(event: any): Promise<void> {
     }
   } else if (event && event.source === 'aws.events') {
     console.log('Triggered by scheduled (cron) event');
+    await scanEnabledAndStart(stateMachineArn, tagPrefix);
   } else {
     console.log('Unknown event type');
   }

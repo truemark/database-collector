@@ -88,6 +88,7 @@ export class SchedulerFunction extends NodejsFunction {
           'states:ListExecutions',
           'secretsmanager:GetSecretValue',
           'secretsmanager:DescribeSecret',
+          'secretsmanager:ListSecrets',
         ],
         resources: ['*'],
       }),
